@@ -1,13 +1,11 @@
-import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Link, Tabs } from 'expo-router';
+import React from 'react';
 import { Pressable } from 'react-native';
 
-import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import Colors from '@/constants/Colors';
 
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
   color: string;
@@ -22,14 +20,15 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
+        // 1. KUNCI PERTAMA: Kita matikan header bawaan untuk SEMUA screen di dalam grup tabs ini
+        headerShown: false, 
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Tab One',
+          // 2. KUNCI KEDUA: Menyembunyikan bottom tab bar khusus saat membuka halaman index (Login)
+          tabBarStyle: { display: 'none' }, 
           tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
           headerRight: () => (
             <Link href="/modal" asChild>
