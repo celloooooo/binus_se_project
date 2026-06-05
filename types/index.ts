@@ -21,7 +21,7 @@ export interface User {
   lastName: string;
   username: string;
   email: string;
-  password: string; // kept for local AsyncStorage auth — replace with Firebase later
+  password: string; // kept for local AsyncStorage auth — replace with Supabase later
   profileImage: string | null;
   coverImage: string | null;
   bio: string;
