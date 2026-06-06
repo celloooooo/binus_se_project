@@ -26,6 +26,7 @@ import {
 } from "../../components/frontend/MiscScreens";
 import {
   AddModificationScreen,
+  CreateVehicleScreen,
   ProfileScreen,
   VehicleDetailScreen,
   VehiclesListScreen,
@@ -211,6 +212,7 @@ const PRESENTATION_USER = {
 export default function App() {
   const [screen, setScreen] = useState("login");
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
 
   // State Input Form
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
@@ -251,10 +253,12 @@ export default function App() {
 
   // Pembuatan Post & Event
   const [postCaption, setPostCaption] = useState("");
+  const [postImage, setPostImage] = useState<string | null>(null);
   const [disableComments, setDisableComments] = useState(false);
   const [boostEvent, setBoostEvent] = useState(false);
   const [allPosts, setAllPosts] = useState<any[]>([]);
   const [allEvents, setAllEvents] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
 
   // Kendaraan & Modifikasi
   const [modifications, setModifications] = useState<any[]>([]);
@@ -265,44 +269,124 @@ export default function App() {
 
   // Menyelaraskan currentUser format database (snake_case) ke frontend format (camelCase)
   const normalizeAndSetUser = (profile: any) => {
-    if (!profile) {
-      setCurrentUser(null);
-      return;
-    }
+    if (!profile) return;
+
     setCurrentUser({
-      ...profile,
+      id: profile.id,
       firstName: profile.first_name || profile.firstName || "",
+      first_name: profile.first_name || profile.firstName || "",
       lastName: profile.last_name || profile.lastName || "",
+      last_name: profile.last_name || profile.lastName || "",
+      username: profile.username || "",
+      email: profile.email || "",
       profileImage: profile.profile_image || profile.profileImage || null,
+      profile_image: profile.profile_image || profile.profileImage || null,
       coverImage: profile.cover_image || profile.coverImage || null,
-      stats: profile.stats || {
-        badges: 0,
-        posts: 0,
-        followers: 0,
-        following: 0,
-      },
-      cars: profile.cars || ["Owned Vehicle: 2010 Mazda Rx8"],
+      cover_image: profile.cover_image || profile.coverImage || null,
+      bio: profile.bio || "",
     });
   };
 
   // Restore session on mount
+  //  FIXED INITIALIZATION HOOK
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }: any) => {
-      if (session) {
-        supabase
-          .from("users")
-          .select("*")
-          .eq("id", session.user.id)
-          .single()
-          .then(({ data: profile }: any) => {
-            if (profile) {
-              normalizeAndSetUser(profile);
-              setScreen("home");
-            }
-          });
+    // 1. Check for an immediate session if it's already cached and ready
+    const checkInitialSession = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.user) {
+          await fetchAndNormalizeProfile(session.user.id);
+        }
+      } catch (err) {
+        console.error("Error getting initial session:", err);
+      }
+    };
+
+    checkInitialSession();
+
+    // 2. Set up a listener to catch the session as soon as local storage restores it
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth State Changed Event:", event);
+
+      if (session?.user) {
+        await fetchAndNormalizeProfile(session.user.id);
+      } else if (event === "SIGNED_OUT") {
+        setCurrentUser(null);
+        setScreen("login");
       }
     });
+
+    // Clean up the listener when the component unmounts
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
+
+  // Helper function to handle fetching data and routing smoothly
+  const fetchAndNormalizeProfile = async (userId: string) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", userId)
+        .single();
+
+      if (error) throw error;
+
+      if (profile) {
+        // Run your normalizer to map profile_image to profileImage cleanly
+        normalizeAndSetUser(profile);
+        setScreen("home"); // Teleport directly into the app
+      }
+    } catch (err: any) {
+      console.error("Profile sync failed on restore:", err.message);
+    }
+  };
+
+  // Helper function to upload image file to Supabase Storage
+  const uploadImageToStorage = async (localUri: string, bucketName: string) => {
+    try {
+      const blob: Blob = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = function () {
+          resolve(xhr.response);
+        };
+        xhr.onerror = function (e) {
+          console.error("XHR failed mapping local file:", e);
+          reject(new TypeError("Network request failed"));
+        };
+        xhr.responseType = "blob";
+        xhr.open("GET", localUri, true);
+        xhr.send(null);
+      });
+
+      const fileExt = localUri.split(".").pop() || "jpg";
+      const fileName = `${currentUser?.id || "user"}_${Date.now()}.${fileExt}`;
+      const filePath = `public/${fileName}`;
+
+      const { data, error: uploadError } = await supabase.storage
+        .from(bucketName)
+        .upload(filePath, blob, {
+          contentType: `image/${fileExt === "png" ? "png" : "jpeg"}`,
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from(bucketName).getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error: any) {
+      console.error("Storage upload error details:", error.message);
+      throw error;
+    }
+  };
 
   // Fetch groups yang diikuti dari database Supabase
   useEffect(() => {
@@ -317,18 +401,18 @@ export default function App() {
     try {
       const { data: membershipData, error } = await supabase
         .from("group_members")
-        .select("group_id, groups(*)")
+        .select("group_id, groups(*, posts(*, users(*)))") // Added relational select for posts
         .eq("user_id", currentUser.id);
 
       if (error) throw error;
 
+      // Extract the group object from the join table response
       const joined =
         membershipData?.map((m: any) => m.groups).filter(Boolean) || [];
-      console.log("membershipData:", JSON.stringify(membershipData));
-      console.log("joined:", JSON.stringify(joined));
 
-      // Tambahkan grup presentasi kustom (DrivnBye) agar UI selalu terlihat ramai dan cantik
-      const hasDrivnBye = joined.some((g: any) => g.name === "DrivnBye");
+      console.log("membershipData synced:", JSON.stringify(membershipData));
+
+      // Direct assignment from backend data to state
       setMyGroups(joined);
     } catch (err: any) {
       console.error("Error fetching groups:", err.message);
@@ -343,7 +427,8 @@ export default function App() {
       const { data: profile, error: profileError } = await supabase
         .from("users")
         .select("*")
-        .eq("username", loginForm.username)
+        // Change .eq to .ilike for case-insensitive matching
+        .ilike("username", loginForm.username)
         .single();
 
       if (profileError || !profile) {
@@ -452,24 +537,37 @@ export default function App() {
   };
 
   const pickProfilePhoto = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Denied", "Camera roll permission is needed.");
-      return;
-    }
+    if (!currentUser) return;
+
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: "images",
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 1,
+      quality: 0.7,
+      allowsMultipleSelection: false,
     });
-    if (!result.canceled && result.assets?.length > 0) {
-      const uri = result.assets[0].uri;
-      await supabase
-        .from("users")
-        .update({ profile_image: uri })
-        .eq("id", currentUser.id);
-      setCurrentUser({ ...currentUser, profileImage: uri, profile_image: uri });
+
+    if (!result.canceled && result.assets && result.assets[0].uri) {
+      const localUri = result.assets[0].uri;
+
+      try {
+        // 1. Bypass Supabase entirely! Save the local file system path directly to your local UI state
+        setCurrentUser((prev: any) => ({
+          ...prev,
+          profileImage: localUri,
+          profile_image: localUri,
+        }));
+
+        // 2. (Optional) If you still want the database to remember the local path on this device:
+        await supabase
+          .from("users")
+          .update({ profile_image: localUri })
+          .eq("id", currentUser.id);
+
+        Alert.alert("Success", "Profile photo updated locally!");
+      } catch (err: any) {
+        console.error("Local save notice:", err.message);
+      }
     }
   };
 
@@ -480,7 +578,7 @@ export default function App() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: "images",
       allowsEditing: true,
       aspect: [16, 9],
       quality: 1,
@@ -548,6 +646,23 @@ export default function App() {
     }
   };
 
+  const pickPostImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Denied", "Camera roll permission is required.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.length > 0) {
+      setPostImage(result.assets[0].uri);
+    }
+  };
+
   const handleCreatePost = async () => {
     if (!postCaption.trim()) {
       Alert.alert("❌ Error", "Please write something before posting!");
@@ -557,10 +672,13 @@ export default function App() {
       const { error } = await supabase.from("posts").insert({
         user_id: currentUser.id,
         content: postCaption.trim(),
+        image: postImage,
+        group_id: selectedGroup?.id || null,
       });
       if (error) throw error;
       Alert.alert("✅ Posted!", "Your post has been shared.");
       setPostCaption("");
+      setPostImage(null);
       setScreen("home");
     } catch (e: any) {
       Alert.alert("❌ Error", e.message);
@@ -592,6 +710,22 @@ export default function App() {
     if (!error) setAllEvents(data || []);
   };
 
+  const fetchVehicles = async () => {
+    const { data, error } = await supabase
+      .from("vehicles")
+      .select("*")
+      .eq("user_id", currentUser.id)
+      .order("created_at", { ascending: false });
+    if (!error) setVehicles(data || []);
+  };
+
+  useEffect(() => {
+    if (currentUser && screen === "profile") {
+      fetchUserPosts();
+      fetchVehicles();
+    }
+  }, [screen, currentUser]);
+
   useEffect(() => {
     if (currentUser && screen === "searchMain") {
       fetchAllPosts();
@@ -608,10 +742,37 @@ export default function App() {
   const fetchGroupMembers = async (groupId: string) => {
     const { data, error } = await supabase
       .from("group_members")
-      .select("*, users(id, username, first_name, last_name)")
+      .select("*, users(id, username, first_name, last_name, profile_image)")
       .eq("group_id", groupId);
     if (error) return [];
     return data.map((m: any) => m.users).filter(Boolean);
+  };
+
+  const fetchGroupPosts = async (groupId: string) => {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*, users(id, username, profile_image)")
+      .eq("group_id", groupId)
+      .order("created_at", { ascending: false });
+    if (error) return [];
+    return data || [];
+  };
+
+  const fetchMemberVehicles = async (groupId: string) => {
+    const { data: memberData, error: memberError } = await supabase
+      .from("group_members")
+      .select("user_id")
+      .eq("group_id", groupId);
+    if (memberError || !memberData?.length) return [];
+
+    const userIds = memberData.map((m: any) => m.user_id);
+
+    const { data: vehicleData, error: vehicleError } = await supabase
+      .from("vehicles")
+      .select("id, name, model, image, user_id")
+      .in("user_id", userIds);
+    if (vehicleError) return [];
+    return vehicleData || [];
   };
 
   const handleCreateEvent = async (eventData: any) => {
@@ -682,6 +843,44 @@ export default function App() {
     ]);
   };
 
+  const handleAddVehicle = async (vehicleData: any) => {
+    try {
+      const { data, error } = await supabase
+        .from("vehicles")
+        .insert({
+          user_id: currentUser.id,
+          name: vehicleData.name,
+          model: vehicleData.model,
+          trim: vehicleData.trim,
+          color: vehicleData.color,
+          description: vehicleData.description,
+          image: vehicleData.image,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      setVehicles((prev) => [data, ...prev]);
+      Alert.alert("✅ Vehicle added!");
+    } catch (e: any) {
+      Alert.alert("❌ Error", e.message);
+    }
+  };
+
+  const handleDeleteVehicle = async (vehicleId: string) => {
+    Alert.alert("Delete Vehicle?", "This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          await supabase.from("vehicles").delete().eq("id", vehicleId);
+          setVehicles((prev) => prev.filter((v) => v.id !== vehicleId));
+          Alert.alert("✅ Vehicle deleted");
+        },
+      },
+    ]);
+  };
+
   // PENGAMBILAN GAMBAR (Expo Image Picker)
   const pickGroupCover = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -694,7 +893,7 @@ export default function App() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: "images",
       allowsEditing: true,
       aspect: [16, 9],
       quality: 1,
@@ -716,7 +915,7 @@ export default function App() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: "images",
       allowsEditing: true,
       aspect: [1, 1],
       quality: 1,
@@ -764,18 +963,14 @@ export default function App() {
   };
 
   // Menyisipkan postingan visual ke grup jika data dari server kosong
+  // Interaksi Feed Postingan dari Server
   const getGroupWithContent = (group: any) => {
     if (!group) return null;
-    if (group.posts && group.posts.length > 0) return group;
 
-    // Default mock data agar visual tetap keren
-    const isMockGroup = group.id === "g1" || group.name === "DrivnBye";
-    const mockPosts = isMockGroup
-      ? PRESENTATION_USER.groups[0].posts
-      : PRESENTATION_USER.groups[1].posts;
+    // Fallback to empty array if the group record has no posts yet
     return {
       ...group,
-      posts: mockPosts,
+      posts: group.posts || [],
     };
   };
 
@@ -841,6 +1036,10 @@ export default function App() {
         allEvents={allEvents}
         handleDeletePost={handleDeletePost}
         handleDeleteEvent={handleDeleteEvent}
+        likedPosts={likedPosts}
+        savedPosts={savedPosts}
+        toggleLike={toggleLike}
+        toggleSave={toggleSave}
       />
     );
   }
@@ -862,6 +1061,12 @@ export default function App() {
         pickProfilePhoto={pickProfilePhoto}
         pickCoverPhoto={pickCoverPhoto}
         handleDeletePost={handleDeletePost}
+        setSelectedVehicle={setSelectedVehicle}
+        vehicles={vehicles}
+        likedPosts={likedPosts}
+        savedPosts={savedPosts}
+        toggleLike={toggleLike}
+        toggleSave={toggleSave}
       />
     );
   }
@@ -891,7 +1096,10 @@ export default function App() {
         handleScrollImage={handleScrollImage}
         width={width}
         fetchGroupMembers={fetchGroupMembers}
+        fetchMemberVehicles={fetchMemberVehicles}
+        fetchGroupPosts={fetchGroupPosts}
         handleLeaveGroup={handleLeaveGroup}
+        currentUser={currentUser}
       />
     );
   }
@@ -921,12 +1129,24 @@ export default function App() {
       />
     );
   }
+  if (screen === "createVehicle") {
+    return (
+      <CreateVehicleScreen
+        setScreen={setScreen}
+        currentUser={currentUser}
+        setCurrentUser={setCurrentUser}
+        handleAddVehicle={handleAddVehicle}
+      />
+    );
+  }
   if (screen === "createPost") {
     return (
       <CreatePostScreen
         setScreen={setScreen}
         postCaption={postCaption}
         setPostCaption={setPostCaption}
+        postImage={postImage}
+        pickPostImage={pickPostImage}
         disableComments={disableComments}
         setDisableComments={setDisableComments}
         boostEvent={boostEvent}
@@ -955,6 +1175,8 @@ export default function App() {
         setModifications={setModifications}
         showVehicleMenu={showVehicleMenu}
         setShowVehicleMenu={setShowVehicleMenu}
+        selectedVehicle={selectedVehicle}
+        handleDeleteVehicle={handleDeleteVehicle}
       />
     );
   }
@@ -964,6 +1186,10 @@ export default function App() {
         setScreen={setScreen}
         currentUser={currentUser}
         setVehicleBackScreen={setVehicleBackScreen}
+        setSelectedVehicle={setSelectedVehicle}
+        vehicles={vehicles}
+        handleAddVehicle={handleAddVehicle}
+        handleDeleteVehicle={handleDeleteVehicle}
       />
     );
   }

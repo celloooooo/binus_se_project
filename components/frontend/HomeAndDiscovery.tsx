@@ -1,14 +1,18 @@
 import {
   Bell,
+  Bookmark,
   Calendar,
   ChevronRight,
   Filter,
+  Heart,
   ImageIcon,
+  MessageCircle,
   MessageSquare,
   PlusCircle,
+  Send,
   Target,
   UserPlus,
-  Users2,
+  Users2
 } from "lucide-react-native";
 import React from "react";
 import {
@@ -87,6 +91,10 @@ interface SearchMainProps {
   allEvents: any[];
   handleDeletePost: (id: string) => void;
   handleDeleteEvent: (id: string) => void;
+  likedPosts: Record<string, boolean>;
+  savedPosts: Record<string, boolean>;
+  toggleLike: (postId: any) => void;
+  toggleSave: (postId: any) => void;
 }
 
 export const SearchMainScreen = ({
@@ -97,6 +105,10 @@ export const SearchMainScreen = ({
   allEvents,
   handleDeletePost,
   handleDeleteEvent,
+  likedPosts,
+  savedPosts,
+  toggleLike,
+  toggleSave,
 }: SearchMainProps) => {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [activeFilter, setActiveFilter] = React.useState<string | null>(null);
@@ -124,7 +136,7 @@ export const SearchMainScreen = ({
     { label: "🔥 Trending Near Posts", filter: "posts" },
     { label: "📌 Trending Hashtags", filter: "posts" },
     { label: "🌍 Trending Worldwide Posts", filter: "posts" },
-    { label: "🎉 Today's Events", filter: "events" },
+    { label: "🎉 Popular's Events", filter: "events" },
     { label: "🆕 New Events", filter: "events" },
     { label: "👥 Popular Groups", filter: "groups" },
   ];
@@ -228,82 +240,89 @@ export const SearchMainScreen = ({
               filteredPosts.map((post: any) => (
                 <View
                   key={post.id}
-                  style={{
-                    marginHorizontal: 15,
-                    marginBottom: 15,
-                    borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: "#EEE",
-                    overflow: "hidden",
-                  }}
+                  style={[styles.postCard, { marginHorizontal: 15 }]}
                 >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      padding: 12,
-                    }}
-                  >
-                    {post.users?.profile_image ? (
-                      <Image
-                        source={{ uri: post.users.profile_image }}
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 20,
-                          marginRight: 10,
-                        }}
-                      />
-                    ) : (
-                      <View
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 20,
-                          backgroundColor: "#EEE",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          marginRight: 10,
-                        }}
-                      >
-                        <Text style={{ fontSize: 18 }}>👤</Text>
+                  <View style={styles.postHeaderRow}>
+                    <View style={styles.postHeaderLeft}>
+                      {post.users?.profile_image ? (
+                        <Image
+                          source={{ uri: post.users.profile_image }}
+                          style={styles.postAvatar}
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.postAvatar,
+                            {
+                              backgroundColor: "#EEE",
+                              justifyContent: "center",
+                              alignItems: "center",
+                            },
+                          ]}
+                        >
+                          <Text style={{ fontSize: 18 }}>👤</Text>
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.postUserText}>
+                          @{post.users?.username}
+                        </Text>
+                        <Text style={styles.postLocationText}>
+                          {new Date(post.created_at).toLocaleDateString()}
+                        </Text>
                       </View>
-                    )}
-                    <View>
-                      <Text style={{ fontWeight: "700", fontSize: 14 }}>
-                        @{post.users?.username}
-                      </Text>
-                      <Text style={{ color: "#999", fontSize: 12 }}>
-                        {new Date(post.created_at).toLocaleDateString()}
-                      </Text>
                     </View>
+                    {/* {post.user_id === currentUser?.id && (
+                      <TouchableOpacity
+                        onPress={() => handleDeletePost(post.id)}
+                      >
+                        <Trash2 size={18} color="#D32F2F" />
+                      </TouchableOpacity>
+                    )} */}
                   </View>
                   {post.image && (
                     <Image
                       source={{ uri: post.image }}
-                      style={{ width: "100%", height: 200 }}
+                      style={{ width: "100%", height: 280, marginVertical: 10 }}
+                      resizeMode="cover"
                     />
                   )}
-                  <View style={{ padding: 12 }}>
-                    <Text style={{ fontSize: 14, color: "#222" }}>
-                      {post.content}
-                    </Text>
-                    <View
-                      style={{ flexDirection: "row", gap: 12, marginTop: 10 }}
-                    >
-                      <Text style={{ color: "#888", fontSize: 13 }}>❤️ 0</Text>
-                      <Text style={{ color: "#888", fontSize: 13 }}>💬 0</Text>
-                    </View>
-                    {post.user_id === currentUser?.id && (
+                  <View style={styles.postActionRow}>
+                    <View style={styles.postActionLeft}>
                       <TouchableOpacity
-                        onPress={() => handleDeletePost(post.id)}
-                        style={{ marginTop: 8 }}
+                        style={styles.actionIcon}
+                        onPress={() => toggleLike(post.id)}
                       >
-                        <Text style={{ color: "#D32F2F", fontSize: 13 }}>
-                          🗑 Delete Post
-                        </Text>
+                        <Heart
+                          size={26}
+                          color={likedPosts[post.id] ? "#E53935" : "black"}
+                          fill={likedPosts[post.id] ? "#E53935" : "transparent"}
+                        />
                       </TouchableOpacity>
-                    )}
+                      <Text style={styles.actionText}>
+                        {likedPosts[post.id] ? 1 : 0}
+                      </Text>
+                      <TouchableOpacity style={styles.actionIcon}>
+                        <MessageCircle size={26} color="black" />
+                      </TouchableOpacity>
+                      <Text style={styles.actionText}>0</Text>
+                      <TouchableOpacity style={styles.actionIcon}>
+                        <Send size={26} color="black" />
+                      </TouchableOpacity>
+                    </View>
+                    <TouchableOpacity onPress={() => toggleSave(post.id)}>
+                      <Bookmark
+                        size={26}
+                        color={savedPosts[post.id] ? "#555" : "black"}
+                        fill={savedPosts[post.id] ? "#555" : "transparent"}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.postTextContainer}>
+                    <Text style={styles.postCaptionText}>{post.content}</Text>
+                    <Text style={styles.postTimeText}>
+                      {new Date(post.created_at).toLocaleDateString()}
+                    </Text>
                   </View>
                 </View>
               ))
@@ -514,7 +533,7 @@ export const AddPostScreen = ({
         </View>
         <View style={styles.cardInfo}>
           <Text style={styles.cardLabel}>Post</Text>
-          <Text style={styles.cardSub}>Post your thoughts...</Text>
+          <Text style={styles.cardSub}>Post what's on your mind...</Text>
         </View>
       </TouchableOpacity>
 

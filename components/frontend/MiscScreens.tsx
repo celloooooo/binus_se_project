@@ -9,11 +9,12 @@ import {
   Image as ImageIcon,
   MapPin,
   MessageCircleOff,
-  Plus
+  Plus,
 } from "lucide-react-native";
 import React from "react";
 import {
   Alert,
+  Image,
   ScrollView,
   Switch,
   Text,
@@ -29,6 +30,8 @@ interface MiscProps {
   // Post states
   postCaption: string;
   setPostCaption: (text: string) => void;
+  postImage?: string | null;
+  pickPostImage?: () => void;
   disableComments: boolean;
   setDisableComments: (val: boolean) => void;
 
@@ -50,7 +53,11 @@ export const InboxScreen = ({
         <ArrowLeft size={28} color="black" />
       </TouchableOpacity>
       <Text style={styles.topPageTitle}>Inbox</Text>
-      <TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => {
+          Alert.alert("Chat request link copied!");
+        }}
+      >
         <Plus size={32} color="black" />
       </TouchableOpacity>
     </View>
@@ -85,6 +92,8 @@ export const CreatePostScreen = ({
   setScreen,
   postCaption,
   setPostCaption,
+  postImage,
+  pickPostImage,
   disableComments,
   setDisableComments,
   handleCreatePost,
@@ -159,13 +168,22 @@ export const CreatePostScreen = ({
         </View>
       </ScrollView>
 
+      {postImage && (
+        <View style={{ paddingHorizontal: 20, paddingBottom: 10 }}>
+          <Image
+            source={{ uri: postImage }}
+            style={{ width: "100%", height: 200, borderRadius: 12 }}
+            resizeMode="cover"
+          />
+        </View>
+      )}
       <View style={styles.postBottomToolbar}>
         <View style={styles.toolbarHandle} />
         <View style={styles.toolbarIconRow}>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={pickPostImage}>
             <Camera size={28} color="#2E7D32" />
           </TouchableOpacity>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={pickPostImage}>
             <ImageIcon size={28} color="#D32F2F" />
           </TouchableOpacity>
           <TouchableOpacity>

@@ -16,6 +16,7 @@ import {
 } from "lucide-react-native";
 import React from "react";
 import {
+  Alert,
   Image,
   Modal,
   ScrollView,
@@ -75,9 +76,9 @@ export const GroupsScreen = ({
               Join groups to connect with other car enthusiasts{"\n"}near you or
               worldwide!
             </Text>
-            <TouchableOpacity style={styles.joinGroupsBtn}>
+            {/* <TouchableOpacity style={styles.joinGroupsBtn}>
               <Text style={styles.joinGroupsBtnText}>Find Groups</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         ) : (
           myGroups.map((group: any, index: number) => (
@@ -150,7 +151,10 @@ interface GroupFeedScreenProps {
   handleScrollImage: (event: any, postId: any) => void;
   width: number;
   fetchGroupMembers: (groupId: string) => Promise<any[]>;
+  fetchMemberVehicles: (groupId: string) => Promise<any[]>;
+  fetchGroupPosts: (groupId: string) => Promise<any[]>;
   handleLeaveGroup: (groupId: string) => void;
+  currentUser: any;
 }
 
 export const GroupFeedScreen = ({
@@ -166,16 +170,23 @@ export const GroupFeedScreen = ({
   handleScrollImage,
   width,
   fetchGroupMembers,
+  fetchMemberVehicles,
+  fetchGroupPosts,
   handleLeaveGroup,
+  currentUser,
 }: GroupFeedScreenProps) => {
   if (!selectedGroup) return null;
 
   const [activeTab, setActiveTab] = React.useState("info");
   const [members, setMembers] = React.useState<any[]>([]);
+  const [garageVehicles, setGarageVehicles] = React.useState<any[]>([]);
+  const [groupPosts, setGroupPosts] = React.useState<any[]>([]);
 
   React.useEffect(() => {
     if (selectedGroup?.id) {
       fetchGroupMembers(selectedGroup.id).then(setMembers);
+      fetchMemberVehicles(selectedGroup.id).then(setGarageVehicles);
+      fetchGroupPosts(selectedGroup.id).then(setGroupPosts);
     }
   }, [selectedGroup]);
 
@@ -197,7 +208,9 @@ export const GroupFeedScreen = ({
           <ArrowLeft size={24} color="black" />
         </TouchableOpacity>
         <View style={styles.groupDetailTopRight}>
-          <TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => Alert.alert("Group notifications toggled!")}
+          >
             <Bell size={20} color="black" />
           </TouchableOpacity>
           <View style={styles.verticalDivider} />
@@ -252,7 +265,10 @@ export const GroupFeedScreen = ({
             </Text>
           )}
 
-          <TouchableOpacity style={styles.inviteButton}>
+          <TouchableOpacity
+            style={styles.inviteButton}
+            onPress={() => Alert.alert("Invite link copied!")}
+          >
             <Text style={styles.inviteButtonText}>Invite Members</Text>
           </TouchableOpacity>
 
@@ -275,7 +291,7 @@ export const GroupFeedScreen = ({
                     : styles.groupTabTextDetailed
                 }
               >
-                Info
+                Posts
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -335,19 +351,31 @@ export const GroupFeedScreen = ({
                     borderBottomColor: "#EEE",
                   }}
                 >
-                  <View
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 22,
-                      backgroundColor: "#EEE",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      marginRight: 12,
-                    }}
-                  >
-                    <Text style={{ fontSize: 18 }}>👤</Text>
-                  </View>
+                  {member.profile_image ? (
+                    <Image
+                      source={{ uri: member.profile_image }}
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        marginRight: 12,
+                      }}
+                    />
+                  ) : (
+                    <View
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        backgroundColor: "#EEE",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        marginRight: 12,
+                      }}
+                    >
+                      <Text style={{ fontSize: 18 }}>👤</Text>
+                    </View>
+                  )}
                   <View>
                     <Text style={{ fontWeight: "600", fontSize: 15 }}>
                       {member.first_name} {member.last_name}
@@ -363,85 +391,118 @@ export const GroupFeedScreen = ({
         )}
 
         {activeTab === "garage" && (
-          <View style={{ padding: 15, alignItems: "center", marginTop: 20 }}>
-            <Text style={{ color: "#999" }}>No vehicles added yet</Text>
+          <View style={{ padding: 15 }}>
+            {garageVehicles.length === 0 ? (
+              <View style={{ alignItems: "center", marginTop: 20 }}>
+                <Text style={{ color: "#999" }}>No vehicles added yet</Text>
+              </View>
+            ) : (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                {garageVehicles.map((vehicle: any, index: number) => (
+                  <View
+                    key={vehicle.id || index}
+                    style={{
+                      width: "47%",
+                      borderRadius: 12,
+                      overflow: "hidden",
+                      backgroundColor: "#111",
+                    }}
+                  >
+                    <Image
+                      source={{
+                        uri:
+                          vehicle.image ||
+                          "https://images.unsplash.com/photo-1617531653520-4893f7bbf978?w=500",
+                      }}
+                      style={{ width: "100%", height: 110 }}
+                      resizeMode="cover"
+                    />
+                    <View style={{ padding: 8 }}>
+                      <Text
+                        style={{
+                          color: "#FFF",
+                          fontWeight: "700",
+                          fontSize: 13,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {vehicle.name || "Vehicle"}
+                      </Text>
+                      <Text
+                        style={{ color: "#AAA", fontSize: 12 }}
+                        numberOfLines={1}
+                      >
+                        {vehicle.model || ""}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         )}
 
         {activeTab === "info" &&
-          selectedGroup.posts?.map((post: any, index: number) => {
+          groupPosts.map((post: any, index: number) => {
             const isLiked = likedPosts[post.id];
             const isSaved = savedPosts[post.id];
             const currentLikes = (post.likes || 0) + (isLiked ? 1 : 0);
-            const slideIndex = activeSlides[post.id] || 0;
 
             return (
               <View key={post.id || index} style={styles.postCard}>
                 <View style={styles.postHeaderRow}>
                   <View style={styles.postHeaderLeft}>
-                    <Image
-                      source={{
-                        uri:
-                          post.avatar ||
-                          "https://images.unsplash.com/photo-1542362567-b07e54358753?w=500",
-                      }}
-                      style={styles.postAvatar}
-                    />
+                    {post.users?.profile_image ? (
+                      <Image
+                        source={{ uri: post.users.profile_image }}
+                        style={styles.postAvatar}
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.postAvatar,
+                          {
+                            backgroundColor: "#EEE",
+                            justifyContent: "center",
+                            alignItems: "center",
+                          },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 18 }}>👤</Text>
+                      </View>
+                    )}
                     <View style={{ flex: 1 }}>
                       <Text style={styles.postUserText}>
-                        {post.user || "User"}{" "}
+                        @{post.users?.username || "User"}{" "}
                         <Text style={styles.postGroupText}>
-                          {" "}
                           {">"} {selectedGroup.name}
                         </Text>
                       </Text>
                       <Text style={styles.postLocationText} numberOfLines={1}>
-                        {post.location || "Location"}
+                        {new Date(post.created_at).toLocaleDateString()}
                       </Text>
                     </View>
                   </View>
                 </View>
 
-                {post.images && post.images.length > 0 && (
-                  <ScrollView
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    onMomentumScrollEnd={(e) => handleScrollImage(e, post.id)}
-                  >
-                    {post.images.map((imgUrl: any, imgIdx: number) => (
-                      <Image
-                        key={imgIdx}
-                        source={{ uri: imgUrl }}
-                        style={styles.postMainImage}
-                      />
-                    ))}
-                  </ScrollView>
+                {post.image && (
+                  <Image
+                    source={{ uri: post.image }}
+                    style={{ width: "100%", height: 280, marginVertical: 10 }}
+                    resizeMode="cover"
+                  />
                 )}
 
-                {post.images && post.images.length > 1 && (
+                {/* placeholder to maintain structure — closing brace below */}
+                {/* {false && (
                   <View style={styles.carouselDots}>
-                    {post.images.map((_: any, i: number) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.dot,
-                          slideIndex === i && styles.activeDot,
-                        ]}
-                      />
+                    {[].map((_: any, i: number) => (
+                      <View key={i} style={styles.dot} />
                     ))}
                   </View>
-                )}
+                )} */}
 
-                <View
-                  style={[
-                    styles.postActionRow,
-                    {
-                      marginTop:
-                        post.images && post.images.length > 1 ? 12 : 16,
-                    },
-                  ]}
-                >
+                <View style={styles.postActionRow}>
                   <View style={styles.postActionLeft}>
                     <TouchableOpacity
                       style={styles.actionIcon}
@@ -475,8 +536,10 @@ export const GroupFeedScreen = ({
                 </View>
 
                 <View style={styles.postTextContainer}>
-                  <Text style={styles.postCaptionText}>{post.caption}</Text>
-                  <Text style={styles.postTimeText}>{post.time || "now"}</Text>
+                  <Text style={styles.postCaptionText}>{post.content}</Text>
+                  <Text style={styles.postTimeText}>
+                    {new Date(post.created_at).toLocaleDateString()}
+                  </Text>
                 </View>
               </View>
             );
@@ -498,27 +561,35 @@ export const GroupFeedScreen = ({
         >
           <TouchableOpacity style={styles.bottomSheet} activeOpacity={1}>
             <View style={styles.sheetHandle} />
-            <TouchableOpacity style={styles.sheetActionRow}>
+            <TouchableOpacity
+              style={styles.sheetActionRow}
+              onPress={() => Alert.alert("Share link copied!")}
+            >
               <Share2 size={24} color="#2196F3" />
               <Text style={styles.sheetMainText}>Share Group</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.sheetActionRow}>
+            <TouchableOpacity
+              style={styles.sheetActionRow}
+              onPress={() => Alert.alert("Share link copied!")}
+            >
               <Upload size={24} color="#2196F3" />
               <View>
-                <Text style={styles.sheetMainText}>Send To...</Text>
-                <Text style={styles.sheetSubText}>Send this to a friend</Text>
+                <Text style={styles.sheetMainText}>Send To a User</Text>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.sheetActionRow}>
-              <TouchableOpacity
-                style={styles.sheetActionRow}
-                onPress={() => handleLeaveGroup(selectedGroup.id)}
-              >
-                <ArrowLeft size={24} color="#D84315" />
-                <Text style={[styles.sheetMainText, { color: "#D84315" }]}>
-                  Leave Group
-                </Text>
-              </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.sheetActionRow}
+              onPress={() => handleLeaveGroup(selectedGroup.id)}
+            >
+              <ArrowLeft size={24} color="#D84315" />
+              <Text style={[styles.sheetMainText, { color: "#D84315" }]}>
+                Leave Group
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.sheetActionRow}
+              onPress={() => Alert.alert("Group reported.")}
+            >
               <ShieldCheck size={24} color="#D84315" />
               <Text style={[styles.sheetMainText, { color: "#D84315" }]}>
                 Report Group

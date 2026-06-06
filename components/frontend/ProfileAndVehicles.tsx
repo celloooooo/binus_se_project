@@ -1,11 +1,17 @@
+import * as ImagePicker from "expo-image-picker";
 import {
+  ArrowLeft,
+  Bookmark,
   Camera,
   Check,
   ChevronDown,
   Ellipsis,
+  Heart,
+  MessageCircle,
   Pencil,
   Plus,
   Search,
+  Send,
   Share2,
   Tag,
   Trash2,
@@ -40,6 +46,12 @@ interface ProfileScreenProps {
   pickProfilePhoto: () => void;
   pickCoverPhoto: () => void;
   handleDeletePost: (id: string) => void;
+  setSelectedVehicle: (vehicle: any) => void;
+  vehicles: any[];
+  likedPosts: Record<string, boolean>;
+  savedPosts: Record<string, boolean>;
+  toggleLike: (postId: any) => void;
+  toggleSave: (postId: any) => void;
 }
 
 export const ProfileScreen = ({
@@ -52,6 +64,12 @@ export const ProfileScreen = ({
   pickProfilePhoto,
   pickCoverPhoto,
   handleDeletePost,
+  setSelectedVehicle,
+  vehicles,
+  likedPosts,
+  savedPosts,
+  toggleLike,
+  toggleSave,
 }: ProfileScreenProps) => {
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (evt, gestureState) => {
@@ -67,6 +85,9 @@ export const ProfileScreen = ({
 
   const [editVisible, setEditVisible] = useState(false);
   const [editBio, setEditBio] = useState(currentUser?.bio || "");
+  const [isAddingVehicle, setIsAddingVehicle] = useState(false);
+  const [vehicleName, setVehicleName] = useState("");
+  const [vehicleImage, setVehicleImage] = useState<string | null>(null);
 
   return (
     <View style={styles.whiteContainer} {...panResponder.panHandlers}>
@@ -176,7 +197,7 @@ export const ProfileScreen = ({
             <View style={{ marginTop: 15 }}>
               {currentUser.cars.map((carItem: any, i: number) => (
                 <Text key={i} style={styles.profileCarItem}>
-                  {carItem}
+                  {typeof carItem === "object" ? carItem.model : carItem}
                 </Text>
               ))}
             </View>
@@ -184,7 +205,7 @@ export const ProfileScreen = ({
           <View style={styles.ownedHeader}>
             <Text style={styles.ownedTitle}>Owned Vehicles</Text>
             <Text style={styles.ownedSub}>
-              {currentUser?.cars?.length || 0} Vehicles
+              {vehicles?.length || 0} Vehicles
             </Text>
           </View>
           <ScrollView
@@ -192,39 +213,48 @@ export const ProfileScreen = ({
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.vehicleCardsRow}
           >
-            {currentUser?.cars?.length > 0 ? (
-              currentUser.cars.slice(0, 1).map((car: any, index: number) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.vehicleCard}
-                  onPress={() => {
-                    setVehicleBackScreen("profile");
-                    setScreen("vehicleDetail");
-                  }}
-                >
-                  <Image
-                    source={{
-                      uri: "https://images.unsplash.com/photo-1617531653520-4893f7bbf978?w=500",
-                    }}
-                    style={styles.vehicleImage}
-                  />
-                  <View style={styles.ownBadge}>
-                    <Text style={styles.ownBadgeText}>Own</Text>
-                  </View>
-                  <View style={styles.vehicleOverlay}>
-                    <Text style={styles.vehicleName}>Akari</Text>
-                    <Text style={styles.vehicleModel}>{car}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))
-            ) : (
+            {vehicles.length === 0 ? (
               <TouchableOpacity
                 style={[styles.showAllCard, styles.emptyVehicleCard]}
+                onPress={() => setScreen("createVehicle")}
               >
                 <Text style={styles.emptyVehicleText}>
                   Add your first{"\n"}vehicle
                 </Text>
               </TouchableOpacity>
+            ) : (
+              vehicles.map((vehicle, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.vehiclesGridCard}
+                  onPress={() => {
+                    setVehicleBackScreen("profile");
+                    setSelectedVehicle(vehicle);
+                    setScreen("vehicleDetail");
+                  }}
+                >
+                  <Image
+                    source={{
+                      uri:
+                        typeof vehicle === "object" && vehicle.image
+                          ? vehicle.image
+                          : "https://images.unsplash.com/photo-1617531653520-4893f7bbf978?w=500",
+                    }}
+                    style={styles.vehiclesGridImage}
+                  />
+                  <View style={styles.vehiclesGridOwnBadge}>
+                    <Text style={styles.vehiclesGridOwnBadgeText}>Own</Text>
+                  </View>
+                  <View style={styles.vehiclesGridOverlay}>
+                    <Text style={styles.vehiclesGridName}>
+                      {typeof vehicle === "object" ? vehicle.name : "Vehicle"}
+                    </Text>
+                    <Text style={styles.vehiclesGridModel}>
+                      {typeof vehicle === "object" ? vehicle.model : vehicle}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))
             )}
             <TouchableOpacity
               style={styles.showAllCard}
@@ -252,86 +282,90 @@ export const ProfileScreen = ({
             </Text>
           ) : (
             userPosts.map((post: any) => (
-              <View
-                key={post.id}
-                style={{
-                  marginBottom: 15,
-                  borderRadius: 14,
-                  borderWidth: 1,
-                  borderColor: "#EEE",
-                  overflow: "hidden",
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    padding: 12,
-                  }}
-                >
-                  {currentUser?.profileImage || currentUser?.profile_image ? (
-                    <Image
-                      source={{
-                        uri:
-                          currentUser.profileImage || currentUser.profile_image,
-                      }}
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 20,
-                        marginRight: 10,
-                      }}
-                    />
-                  ) : (
-                    <View
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 20,
-                        backgroundColor: "#EEE",
-                        justifyContent: "center",
-                        alignItems: "center",
-                        marginRight: 10,
-                      }}
-                    >
-                      <Text style={{ fontSize: 18 }}>👤</Text>
+              <View key={post.id} style={styles.postCard}>
+                <View style={styles.postHeaderRow}>
+                  <View style={styles.postHeaderLeft}>
+                    {currentUser?.profileImage || currentUser?.profile_image ? (
+                      <Image
+                        source={{
+                          uri:
+                            currentUser.profileImage ||
+                            currentUser.profile_image,
+                        }}
+                        style={styles.postAvatar}
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.postAvatar,
+                          {
+                            backgroundColor: "#EEE",
+                            justifyContent: "center",
+                            alignItems: "center",
+                          },
+                        ]}
+                      >
+                        <Text style={{ fontSize: 18 }}>👤</Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.postUserText}>
+                        @{currentUser?.username}
+                      </Text>
+                      <Text style={styles.postLocationText}>
+                        {new Date(post.created_at).toLocaleDateString()}
+                      </Text>
                     </View>
-                  )}
-                  <View>
-                    <Text style={{ fontWeight: "700", fontSize: 14 }}>
-                      @{currentUser?.username}
-                    </Text>
-                    <Text style={{ color: "#999", fontSize: 12 }}>
-                      {new Date(post.created_at).toLocaleDateString()}
-                    </Text>
                   </View>
+                  {post.user_id === currentUser?.id && (
+                    <TouchableOpacity onPress={() => handleDeletePost(post.id)}>
+                      <Trash2 size={18} color="#D32F2F" />
+                    </TouchableOpacity>
+                  )}
                 </View>
                 {post.image && (
                   <Image
                     source={{ uri: post.image }}
-                    style={{ width: "100%", height: 200 }}
+                    style={{ width: "100%", height: 280, marginVertical: 10 }}
+                    resizeMode="cover"
                   />
                 )}
-                <View style={{ padding: 12 }}>
-                  <Text style={{ fontSize: 14, color: "#222" }}>
-                    {post.content}
-                  </Text>
-                  <View
-                    style={{ flexDirection: "row", gap: 12, marginTop: 10 }}
-                  >
-                    <Text style={{ color: "#888", fontSize: 13 }}>❤️ 0</Text>
-                    <Text style={{ color: "#888", fontSize: 13 }}>💬 0</Text>
-                  </View>
-                  {post.user_id === currentUser?.id && (
+                <View style={styles.postActionRow}>
+                  <View style={styles.postActionLeft}>
                     <TouchableOpacity
-                      onPress={() => handleDeletePost(post.id)}
-                      style={{ marginTop: 8 }}
+                      style={styles.actionIcon}
+                      onPress={() => toggleLike(post.id)}
                     >
-                      <Text style={{ color: "#D32F2F", fontSize: 13 }}>
-                        🗑 Delete Post
-                      </Text>
+                      <Heart
+                        size={26}
+                        color={likedPosts[post.id] ? "#E53935" : "black"}
+                        fill={likedPosts[post.id] ? "#E53935" : "transparent"}
+                      />
                     </TouchableOpacity>
-                  )}
+                    <Text style={styles.actionText}>
+                      {likedPosts[post.id] ? 1 : 0}
+                    </Text>
+                    <TouchableOpacity style={styles.actionIcon}>
+                      <MessageCircle size={26} color="black" />
+                    </TouchableOpacity>
+                    <Text style={styles.actionText}>0</Text>
+                    <TouchableOpacity style={styles.actionIcon}>
+                      <Send size={26} color="black" />
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity onPress={() => toggleSave(post.id)}>
+                    <Bookmark
+                      size={26}
+                      color={savedPosts[post.id] ? "#555" : "black"}
+                      fill={savedPosts[post.id] ? "#555" : "transparent"}
+                    />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.postTextContainer}>
+                  <Text style={styles.postCaptionText}>{post.content}</Text>
+                  <Text style={styles.postTimeText}>
+                    {new Date(post.created_at).toLocaleDateString()}
+                  </Text>
                 </View>
               </View>
             ))
@@ -409,12 +443,20 @@ interface VehiclesListScreenProps {
   setScreen: (screen: string) => void;
   currentUser: any;
   setVehicleBackScreen: (screen: string) => void;
+  setSelectedVehicle: (car: any) => void;
+  vehicles: any[];
+  handleAddVehicle: (name: string) => void;
+  handleDeleteVehicle: (id: string) => void;
 }
 
 export const VehiclesListScreen = ({
   setScreen,
   currentUser,
   setVehicleBackScreen,
+  setSelectedVehicle,
+  vehicles,
+  handleAddVehicle,
+  handleDeleteVehicle,
 }: VehiclesListScreenProps) => {
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (evt, gestureState) => {
@@ -434,11 +476,7 @@ export const VehiclesListScreen = ({
           onPress={() => setScreen("profile")}
           style={styles.vehiclesHeaderLeft}
         >
-          <ChevronDown
-            size={24}
-            color="black"
-            style={{ transform: [{ rotate: "90deg" }] }}
-          />
+          <ArrowLeft size={24} color="black" />
         </TouchableOpacity>
         <Text style={styles.vehiclesHeaderTitle}>Vehicles</Text>
         <View style={{ width: 36 }} />
@@ -449,18 +487,22 @@ export const VehiclesListScreen = ({
         contentContainerStyle={styles.vehiclesGridContainer}
       >
         <View style={styles.vehiclesGrid}>
-          {currentUser?.cars?.map((car: any, index: number) => (
+          {vehicles.map((car: any, index: number) => (
             <TouchableOpacity
               key={index}
               style={styles.vehiclesGridCard}
               onPress={() => {
                 setVehicleBackScreen("vehicles");
+                setSelectedVehicle(car);
                 setScreen("vehicleDetail");
               }}
             >
               <Image
                 source={{
-                  uri: "https://images.unsplash.com/photo-1617531653520-4893f7bbf978?w=500",
+                  uri:
+                    typeof car === "object" && car.image
+                      ? car.image
+                      : "https://images.unsplash.com/photo-1617531653520-4893f7bbf978?w=500",
                 }}
                 style={styles.vehiclesGridImage}
               />
@@ -468,11 +510,31 @@ export const VehiclesListScreen = ({
                 <Text style={styles.vehiclesGridOwnBadgeText}>Own</Text>
               </View>
               <View style={styles.vehiclesGridOverlay}>
-                <Text style={styles.vehiclesGridName}>Akari</Text>
-                <Text style={styles.vehiclesGridModel}>{car}</Text>
+                <Text style={styles.vehiclesGridName}>
+                  {typeof car === "object" ? car.name : "Vehicle"}
+                </Text>
+                <Text style={styles.vehiclesGridModel}>
+                  {typeof car === "object" ? car.model : car}
+                </Text>
               </View>
             </TouchableOpacity>
           ))}
+          <TouchableOpacity
+            style={[
+              styles.vehiclesGridCard,
+              {
+                justifyContent: "center",
+                alignItems: "center",
+                backgroundColor: "#F5F5F5",
+              },
+            ]}
+            onPress={() => setScreen("createVehicle")}
+          >
+            <Plus size={32} color="#999" />
+            <Text style={{ color: "#999", marginTop: 8, fontSize: 13 }}>
+              Add Vehicle
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>
@@ -487,6 +549,8 @@ interface VehicleDetailScreenProps {
   setModifications: React.Dispatch<React.SetStateAction<any[]>>;
   showVehicleMenu: boolean;
   setShowVehicleMenu: (val: boolean) => void;
+  selectedVehicle: any;
+  handleDeleteVehicle: (id: string) => void;
 }
 
 export const VehicleDetailScreen = ({
@@ -497,7 +561,17 @@ export const VehicleDetailScreen = ({
   setModifications,
   showVehicleMenu,
   setShowVehicleMenu,
+  selectedVehicle,
+  handleDeleteVehicle,
 }: VehicleDetailScreenProps) => {
+  const vehicleQuote = selectedVehicle?.name || '"Akari "';
+  const vehicleModel = selectedVehicle?.model || "2010 Mazda Rx8";
+  const vehicleTrim = selectedVehicle?.trim || "GT";
+  const vehicleColor = selectedVehicle?.color || "White";
+  const vehicleDesc =
+    selectedVehicle?.description ||
+    "2010 Mazda Rx8 GT with Renesis Hybrid and a custom improved and reinforced Rx8 S2 Transmission with 10,5k rpm redline";
+
   return (
     <View style={styles.whiteContainer}>
       <View style={styles.detailHeader}>
@@ -505,11 +579,7 @@ export const VehicleDetailScreen = ({
           onPress={() => setScreen(vehicleBackScreen)}
           style={styles.detailHeaderLeft}
         >
-          <ChevronDown
-            size={24}
-            color="black"
-            style={{ transform: [{ rotate: "90deg" }] }}
-          />
+          <ArrowLeft size={24} color="black" />
           <Text style={styles.detailHeaderTitle}>Vehicle</Text>
           <View style={styles.detailOwnBadge}>
             <Text style={styles.detailOwnBadgeText}>Own</Text>
@@ -537,14 +607,20 @@ export const VehicleDetailScreen = ({
       >
         <Image
           source={{
-            uri: "https://images.unsplash.com/photo-1617531653520-4893f7bbf978?w=1200",
+            uri:
+              selectedVehicle?.image ||
+              "https://images.unsplash.com/photo-1617531653520-4893f7bbf978?w=500",
           }}
           style={styles.detailMainImage}
         />
 
         <View style={styles.detailContent}>
-          <Text style={styles.detailVehicleNameQuote}>"Akari "</Text>
-          <Text style={styles.detailVehicleModelName}>2010 Mazda Rx8</Text>
+          <Text style={styles.detailVehicleNameQuote}>
+            {selectedVehicle?.name || '"Akari "'}
+          </Text>
+          <Text style={styles.detailVehicleModelName}>
+            {selectedVehicle?.model || "2010 Mazda Rx8"}
+          </Text>
 
           <View style={styles.detailCardsList}>
             <View style={styles.detailItemCard}>
@@ -553,7 +629,9 @@ export const VehicleDetailScreen = ({
               </View>
               <View style={styles.detailCardText}>
                 <Text style={styles.detailCardLabel}>Trim</Text>
-                <Text style={styles.detailCardValue}>GT</Text>
+                <Text style={styles.detailCardValue}>
+                  {selectedVehicle?.trim || "GT"}
+                </Text>
               </View>
             </View>
 
@@ -563,7 +641,9 @@ export const VehicleDetailScreen = ({
               </View>
               <View style={styles.detailCardText}>
                 <Text style={styles.detailCardLabel}>Color</Text>
-                <Text style={styles.detailCardValue}>White</Text>
+                <Text style={styles.detailCardValue}>
+                  {selectedVehicle?.color || "White"}
+                </Text>
               </View>
             </View>
 
@@ -594,8 +674,8 @@ export const VehicleDetailScreen = ({
 
           <Text style={styles.detailSectionTitle}>Description</Text>
           <Text style={styles.detailDescriptionText}>
-            2010 Mazda Rx8 GT with Renesis Hybrid and a custom improved and
-            reinforced Rx8 S2 Transmission with 10,5k rpm redline
+            {selectedVehicle?.description ||
+              "2010 Mazda Rx8 GT with Renesis Hybrid and a custom improved and reinforced Rx8 S2 Transmission with 10,5k rpm redline"}
           </Text>
 
           {modifications.length === 0 ? (
@@ -649,7 +729,7 @@ export const VehicleDetailScreen = ({
               style={styles.vMenuActionRow}
               onPress={() => {
                 setShowVehicleMenu(false);
-                Alert.alert("Share Vehicle", "Sharing option is coming soon!");
+                Alert.alert("Vehicle link copied!");
               }}
             >
               <Share2 size={24} color="#1E88E5" />
@@ -680,12 +760,7 @@ export const VehicleDetailScreen = ({
                       text: "Delete",
                       style: "destructive",
                       onPress: () => {
-                        setModifications([]);
-                        setScreen("profile");
-                        Alert.alert(
-                          "✅ Deleted",
-                          "Vehicle has been deleted successfully!",
-                        );
+                        handleDeleteVehicle(selectedVehicle.id);
                       },
                     },
                   ],
@@ -957,5 +1032,294 @@ export const AddModificationScreen = ({
         </KeyboardAvoidingView>
       </Modal>
     </View>
+  );
+};
+
+interface CreateVehicleScreenProps {
+  setScreen: (screen: string) => void;
+  currentUser: any;
+  setCurrentUser: (user: any) => void;
+  handleAddVehicle: (vehicleData: any) => void;
+}
+
+export const CreateVehicleScreen = ({
+  setScreen,
+  currentUser,
+  setCurrentUser,
+  handleAddVehicle,
+}: CreateVehicleScreenProps) => {
+  // 1. State trackers matching your vehicle detail specs
+  const [vehicleQuote, setVehicleQuote] = React.useState(""); // e.g., "Akari"
+  const [modelName, setModelName] = React.useState(""); // e.g., 2010 Mazda Rx8
+  const [trim, setTrim] = React.useState(""); // e.g., GT
+  const [color, setColor] = React.useState(""); // e.g., White
+  const [description, setDescription] = React.useState("");
+  const [vehicleImage, setVehicleImage] = useState<string | null>(null);
+
+  const pickVehicleImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Denied",
+        "Sorry, we need camera roll permissions to make this work!",
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setVehicleImage(result.assets[0].uri);
+    }
+  };
+
+  const handleSave = () => {
+    if (!modelName.trim()) {
+      Alert.alert("Error", "Please provide at least a Year, Make & Model");
+      return;
+    }
+    const newVehicleObject = {
+      name: vehicleQuote.trim()
+        ? `"${vehicleQuote.trim()}"`
+        : `"${modelName.trim()}"`,
+      model: modelName.trim(),
+      trim: trim.trim() || "N/A",
+      color: color.trim() || "N/A",
+      description:
+        description.trim() || `${modelName.trim()} build description log.`,
+      image:
+        vehicleImage ||
+        "https://images.unsplash.com/photo-1617531653520-4893f7bbf978?w=500",
+    };
+    handleAddVehicle(newVehicleObject);
+    setScreen("vehicles");
+  };
+
+  return (
+    <ScrollView
+      style={[styles.whiteContainer, { paddingTop: 40 }]}
+      contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 60 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Header bar tracking */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 30,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => setScreen("profile")}
+          style={{ padding: 6 }}
+        >
+          <Text style={{ fontSize: 16, color: "#333", fontWeight: "600" }}>
+            Cancel
+          </Text>
+        </TouchableOpacity>
+        <Text style={{ fontSize: 18, fontWeight: "700", color: "#000" }}>
+          Add Vehicle
+        </Text>
+        <View style={{ width: 50 }} />
+      </View>
+
+      {/* Styled Mock Image Box container */}
+      <TouchableOpacity
+        onPress={pickVehicleImage}
+        activeOpacity={0.85}
+        style={{
+          width: "100%",
+          height: 160,
+          backgroundColor: "#F5F5F5",
+          borderRadius: 12,
+          justifyContent: "center",
+          alignItems: "center",
+          marginBottom: 20,
+          borderStyle: "dashed",
+          borderWidth: 1,
+          borderColor: "#BBB",
+          overflow: "hidden",
+        }}
+      >
+        {vehicleImage ? (
+          <Image
+            source={{ uri: vehicleImage }}
+            style={{ width: "100%", height: "100%" }}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={{ alignItems: "center" }}>
+            <Camera size={32} color="#999" style={{ marginBottom: 6 }} />
+            <Text style={{ color: "#888", fontSize: 14 }}>
+              Tap to upload vehicle image
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
+      {/* FIELD 1: Vehicle Quote Name */}
+      <Text
+        style={{
+          color: "#333",
+          fontSize: 14,
+          fontWeight: "600",
+          marginBottom: 6,
+        }}
+      >
+        Vehicle Nickname / Quote
+      </Text>
+      <TextInput
+        style={{
+          backgroundColor: "#F9F9F9",
+          borderWidth: 1,
+          borderColor: "#E0E0E0",
+          padding: 12,
+          borderRadius: 10,
+          fontSize: 15,
+          color: "#000",
+          marginBottom: 16,
+        }}
+        placeholder='e.g. "Akari"'
+        placeholderTextColor="#999"
+        value={vehicleQuote}
+        onChangeText={setVehicleQuote}
+      />
+
+      {/* FIELD 2: Year, Make & Model */}
+      <Text
+        style={{
+          color: "#333",
+          fontSize: 14,
+          fontWeight: "600",
+          marginBottom: 6,
+        }}
+      >
+        Vehicle Year, Make & Model *
+      </Text>
+      <TextInput
+        style={{
+          backgroundColor: "#F9F9F9",
+          borderWidth: 1,
+          borderColor: "#E0E0E0",
+          padding: 12,
+          borderRadius: 10,
+          fontSize: 15,
+          color: "#000",
+          marginBottom: 16,
+        }}
+        placeholder="e.g. 2010 Mazda Rx8"
+        placeholderTextColor="#999"
+        value={modelName}
+        onChangeText={setModelName}
+      />
+
+      {/* FIELD 3: Trim Package */}
+      <Text
+        style={{
+          color: "#333",
+          fontSize: 14,
+          fontWeight: "600",
+          marginBottom: 6,
+        }}
+      >
+        Trim
+      </Text>
+      <TextInput
+        style={{
+          backgroundColor: "#F9F9F9",
+          borderWidth: 1,
+          borderColor: "#E0E0E0",
+          padding: 12,
+          borderRadius: 10,
+          fontSize: 15,
+          color: "#000",
+          marginBottom: 16,
+        }}
+        placeholder="e.g. GT"
+        placeholderTextColor="#999"
+        value={trim}
+        onChangeText={setTrim}
+      />
+
+      {/* FIELD 4: Color */}
+      <Text
+        style={{
+          color: "#333",
+          fontSize: 14,
+          fontWeight: "600",
+          marginBottom: 6,
+        }}
+      >
+        Color
+      </Text>
+      <TextInput
+        style={{
+          backgroundColor: "#F9F9F9",
+          borderWidth: 1,
+          borderColor: "#E0E0E0",
+          padding: 12,
+          borderRadius: 10,
+          fontSize: 15,
+          color: "#000",
+          marginBottom: 16, // Changed from 24 to 16 to space out nicely
+        }}
+        placeholder="e.g. White"
+        placeholderTextColor="#999"
+        value={color}
+        onChangeText={setColor}
+      />
+
+      {/* FIELD 5: Description */}
+      <Text
+        style={{
+          color: "#333",
+          fontSize: 14,
+          fontWeight: "600",
+          marginBottom: 6,
+        }}
+      >
+        Description
+      </Text>
+      <TextInput
+        style={{
+          backgroundColor: "#F9F9F9",
+          borderWidth: 1,
+          borderColor: "#E0E0E0",
+          padding: 12,
+          borderRadius: 10,
+          fontSize: 15,
+          color: "#000",
+          marginBottom: 24,
+          minHeight: 80,
+          textAlignVertical: "top", // Ensures text aligns to the top on Android when using multiline
+        }}
+        placeholder="Tell us about your vehicle setup, history, modifications..."
+        placeholderTextColor="#999"
+        multiline={true}
+        numberOfLines={3}
+        value={description}
+        onChangeText={setDescription}
+      />
+
+      <TouchableOpacity
+        style={{
+          backgroundColor: "#000",
+          padding: 16,
+          borderRadius: 10,
+          alignItems: "center",
+        }}
+        onPress={handleSave}
+      >
+        <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 16 }}>
+          Save Vehicle
+        </Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 };
