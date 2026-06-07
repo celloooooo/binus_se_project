@@ -52,6 +52,8 @@ interface ProfileScreenProps {
   savedPosts: Record<string, boolean>;
   toggleLike: (postId: any) => void;
   toggleSave: (postId: any) => void;
+  commentCounts: Record<string, number>;
+  openComments: (postId: string) => void;
 }
 
 export const ProfileScreen = ({
@@ -70,6 +72,8 @@ export const ProfileScreen = ({
   savedPosts,
   toggleLike,
   toggleSave,
+  commentCounts,
+  openComments,
 }: ProfileScreenProps) => {
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (evt, gestureState) => {
@@ -345,11 +349,19 @@ export const ProfileScreen = ({
                     <Text style={styles.actionText}>
                       {likedPosts[post.id] ? 1 : 0}
                     </Text>
-                    <TouchableOpacity style={styles.actionIcon}>
+                    <TouchableOpacity
+                      style={styles.actionIcon}
+                      onPress={() => openComments(post.id)}
+                    >
                       <MessageCircle size={26} color="black" />
                     </TouchableOpacity>
-                    <Text style={styles.actionText}>0</Text>
-                    <TouchableOpacity style={styles.actionIcon}>
+                    <Text style={styles.actionText}>
+                      {commentCounts[post.id] || 0}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.actionIcon}
+                      onPress={() => Alert.alert("Post link copied!")}
+                    >
                       <Send size={26} color="black" />
                     </TouchableOpacity>
                   </View>
@@ -547,6 +559,7 @@ interface VehicleDetailScreenProps {
   vehicleBackScreen: string;
   modifications: any[];
   setModifications: React.Dispatch<React.SetStateAction<any[]>>;
+  handleDeleteModification: (modId: string) => void;
   showVehicleMenu: boolean;
   setShowVehicleMenu: (val: boolean) => void;
   selectedVehicle: any;
@@ -559,6 +572,7 @@ export const VehicleDetailScreen = ({
   vehicleBackScreen,
   modifications,
   setModifications,
+  handleDeleteModification,
   showVehicleMenu,
   setShowVehicleMenu,
   selectedVehicle,
@@ -695,10 +709,24 @@ export const VehicleDetailScreen = ({
                 <View key={mod.id} style={styles.modificationItemCard}>
                   <View style={styles.modItemHeader}>
                     <Text style={styles.modItemName}>{mod.name}</Text>
-                    <View style={styles.modClassificationBadge}>
-                      <Text style={styles.modClassificationText}>
-                        {mod.classification}
-                      </Text>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <View style={styles.modClassificationBadge}>
+                        <Text style={styles.modClassificationText}>
+                          {mod.classification}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteModification(mod.id)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Trash2 size={16} color="#D32F2F" />
+                      </TouchableOpacity>
                     </View>
                   </View>
                   {mod.description ? (
@@ -740,7 +768,7 @@ export const VehicleDetailScreen = ({
               style={styles.vMenuActionRow}
               onPress={() => {
                 setShowVehicleMenu(false);
-                Alert.alert("Edit Vehicle", "Editing option is coming soon!");
+                setScreen("editVehicle");
               }}
             >
               <Pencil size={24} color="#1E88E5" />
@@ -804,7 +832,7 @@ export const AddModificationScreen = ({
 
   const handleSave = () => {
     if (!name.trim()) {
-      Alert.alert("❌ Error", "Nama modifikasi tidak boleh kosong!");
+      Alert.alert("❌ Error", "Modification name is required");
       return;
     }
     onSaveModification({
@@ -814,7 +842,7 @@ export const AddModificationScreen = ({
       classification:
         classification === "Classification" ? "Other" : classification,
     });
-    Alert.alert("✅ Berhasil", "Modifikasi berhasil ditambahkan!");
+    Alert.alert("✅ Saved", "Modification has been added to your vehicle!");
   };
 
   const openClassificationModal = () => {
@@ -1320,6 +1348,204 @@ export const CreateVehicleScreen = ({
           Save Vehicle
         </Text>
       </TouchableOpacity>
+    </ScrollView>
+  );
+};
+
+interface EditVehicleScreenProps {
+  setScreen: (screen: string) => void;
+  selectedVehicle: any;
+  handleUpdateVehicle: (vehicleData: any) => void;
+}
+
+export const EditVehicleScreen = ({
+  setScreen,
+  selectedVehicle,
+  handleUpdateVehicle,
+}: EditVehicleScreenProps) => {
+  const [vehicleQuote, setVehicleQuote] = React.useState(
+    selectedVehicle?.name?.replace(/"/g, "") || "",
+  );
+  const [modelName, setModelName] = React.useState(
+    selectedVehicle?.model || "",
+  );
+  const [trim, setTrim] = React.useState(selectedVehicle?.trim || "");
+  const [color, setColor] = React.useState(selectedVehicle?.color || "");
+  const [description, setDescription] = React.useState(
+    selectedVehicle?.description || "",
+  );
+  const [vehicleImage, setVehicleImage] = useState<string | null>(
+    selectedVehicle?.image || null,
+  );
+
+  const pickVehicleImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Denied", "Camera roll permission is required.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.length > 0) {
+      setVehicleImage(result.assets[0].uri);
+    }
+  };
+
+  const handleSave = () => {
+    if (!modelName.trim()) {
+      Alert.alert("Error", "Please provide at least a Year, Make & Model");
+      return;
+    }
+    handleUpdateVehicle({
+      name: vehicleQuote.trim()
+        ? `"${vehicleQuote.trim()}"`
+        : `"${modelName.trim()}"`,
+      model: modelName.trim(),
+      trim: trim.trim() || "N/A",
+      color: color.trim() || "N/A",
+      description:
+        description.trim() || `${modelName.trim()} build description log.`,
+      image:
+        vehicleImage ||
+        "https://images.unsplash.com/photo-1617531653520-4893f7bbf978?w=500",
+    });
+  };
+
+  const fieldStyle = {
+    backgroundColor: "#F9F9F9",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    padding: 12,
+    borderRadius: 10,
+    fontSize: 15,
+    color: "#000",
+    marginBottom: 16,
+  };
+  const labelStyle = {
+    color: "#333",
+    fontSize: 14,
+    fontWeight: "600" as const,
+    marginBottom: 6,
+  };
+
+  return (
+    <ScrollView
+      style={[styles.whiteContainer, { paddingTop: 40 }]}
+      contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 60 }}
+      showsVerticalScrollIndicator={false}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 30,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() => setScreen("vehicleDetail")}
+          style={{ padding: 6 }}
+        >
+          <Text style={{ fontSize: 16, color: "#333", fontWeight: "600" }}>
+            Cancel
+          </Text>
+        </TouchableOpacity>
+        <Text style={{ fontSize: 18, fontWeight: "700", color: "#000" }}>
+          Edit Vehicle
+        </Text>
+        <TouchableOpacity onPress={handleSave} style={{ padding: 6 }}>
+          <Text style={{ fontSize: 16, color: "#2196F3", fontWeight: "600" }}>
+            Save
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity
+        onPress={pickVehicleImage}
+        activeOpacity={0.85}
+        style={{
+          width: "100%",
+          height: 160,
+          backgroundColor: "#F5F5F5",
+          borderRadius: 12,
+          justifyContent: "center",
+          alignItems: "center",
+          marginBottom: 20,
+          borderStyle: "dashed",
+          borderWidth: 1,
+          borderColor: "#BBB",
+          overflow: "hidden",
+        }}
+      >
+        {vehicleImage ? (
+          <Image
+            source={{ uri: vehicleImage }}
+            style={{ width: "100%", height: "100%" }}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={{ alignItems: "center" }}>
+            <Camera size={32} color="#999" style={{ marginBottom: 6 }} />
+            <Text style={{ color: "#888", fontSize: 14 }}>
+              Tap to change vehicle image
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
+      <Text style={labelStyle}>Vehicle Nickname / Quote</Text>
+      <TextInput
+        style={fieldStyle}
+        placeholder='e.g. "Akari"'
+        placeholderTextColor="#999"
+        value={vehicleQuote}
+        onChangeText={setVehicleQuote}
+      />
+
+      <Text style={labelStyle}>Year, Make & Model</Text>
+      <TextInput
+        style={fieldStyle}
+        placeholder="e.g. 2010 Mazda RX-8"
+        placeholderTextColor="#999"
+        value={modelName}
+        onChangeText={setModelName}
+      />
+
+      <Text style={labelStyle}>Trim</Text>
+      <TextInput
+        style={fieldStyle}
+        placeholder="e.g. GT"
+        placeholderTextColor="#999"
+        value={trim}
+        onChangeText={setTrim}
+      />
+
+      <Text style={labelStyle}>Color</Text>
+      <TextInput
+        style={fieldStyle}
+        placeholder="e.g. White"
+        placeholderTextColor="#999"
+        value={color}
+        onChangeText={setColor}
+      />
+
+      <Text style={labelStyle}>Description</Text>
+      <TextInput
+        style={[
+          fieldStyle,
+          { height: 120, textAlignVertical: "top", paddingTop: 12 },
+        ]}
+        multiline
+        maxLength={500}
+        placeholder="Describe your build..."
+        placeholderTextColor="#999"
+        value={description}
+        onChangeText={setDescription}
+      />
     </ScrollView>
   );
 };

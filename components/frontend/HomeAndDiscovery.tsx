@@ -12,10 +12,11 @@ import {
   Send,
   Target,
   UserPlus,
-  Users2
+  Users2,
 } from "lucide-react-native";
 import React from "react";
 import {
+  Alert,
   Image,
   ScrollView,
   Text,
@@ -54,7 +55,26 @@ export const HomeScreen = ({
         longitudeDelta: 0.05,
       }}
     />
-    <View style={styles.header}>
+    <View
+      style={[
+        styles.header,
+        {
+          backgroundColor: "white",
+          borderRadius: 0,
+          top: 0,
+          left: 0,
+          right: 0,
+          paddingTop: 52,
+          paddingBottom: 12,
+          paddingHorizontal: 20,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.08,
+          shadowRadius: 6,
+          elevation: 4,
+        },
+      ]}
+    >
       <Text style={styles.brandText}>DriveTribe</Text>
       <View style={styles.headerIcons}>
         <TouchableOpacity onPress={() => setScreen("inbox")}>
@@ -66,7 +86,14 @@ export const HomeScreen = ({
       </View>
     </View>
     <View style={styles.leftActionStack}>
-      <TouchableOpacity style={styles.circularActionBtn}>
+      <TouchableOpacity
+        style={styles.circularActionBtn}
+        onPress={() =>
+          Alert.alert("Nearby Users", "Showing nearby users on the map!", [
+            { text: "OK" },
+          ])
+        }
+      >
         <Users2 size={24} color="black" />
       </TouchableOpacity>
       <TouchableOpacity
@@ -75,7 +102,15 @@ export const HomeScreen = ({
       >
         <Target size={24} color="black" />
       </TouchableOpacity>
-      <TouchableOpacity style={styles.circularActionBtn}>
+      <TouchableOpacity
+        style={styles.circularActionBtn}
+        onPress={() =>
+          Alert.alert(
+            "Filtered users",
+            "Filtered users ont he map to group members only!",
+          )
+        }
+      >
         <Filter size={24} color="black" />
       </TouchableOpacity>
     </View>
@@ -95,6 +130,8 @@ interface SearchMainProps {
   savedPosts: Record<string, boolean>;
   toggleLike: (postId: any) => void;
   toggleSave: (postId: any) => void;
+  commentCounts: Record<string, number>;
+  openComments: (postId: string) => void;
 }
 
 export const SearchMainScreen = ({
@@ -109,6 +146,8 @@ export const SearchMainScreen = ({
   savedPosts,
   toggleLike,
   toggleSave,
+  commentCounts,
+  openComments,
 }: SearchMainProps) => {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [activeFilter, setActiveFilter] = React.useState<string | null>(null);
@@ -134,9 +173,9 @@ export const SearchMainScreen = ({
 
   const discoverTags = [
     { label: "🔥 Trending Near Posts", filter: "posts" },
-    { label: "📌 Trending Hashtags", filter: "posts" },
     { label: "🌍 Trending Worldwide Posts", filter: "posts" },
-    { label: "🎉 Popular's Events", filter: "events" },
+    { label: "🆕 Recent Posts", filter: "posts" },
+    { label: "🎉 Popular Events", filter: "events" },
     { label: "🆕 New Events", filter: "events" },
     { label: "👥 Popular Groups", filter: "groups" },
   ];
@@ -302,11 +341,19 @@ export const SearchMainScreen = ({
                       <Text style={styles.actionText}>
                         {likedPosts[post.id] ? 1 : 0}
                       </Text>
-                      <TouchableOpacity style={styles.actionIcon}>
+                      <TouchableOpacity
+                        style={styles.actionIcon}
+                        onPress={() => openComments(post.id)}
+                      >
                         <MessageCircle size={26} color="black" />
                       </TouchableOpacity>
-                      <Text style={styles.actionText}>0</Text>
-                      <TouchableOpacity style={styles.actionIcon}>
+                      <Text style={styles.actionText}>
+                        {commentCounts[post.id] || 0}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.actionIcon}
+                        onPress={() => Alert.alert("Post link copied!")}
+                      >
                         <Send size={26} color="black" />
                       </TouchableOpacity>
                     </View>
@@ -419,63 +466,101 @@ export const SearchMainScreen = ({
                     overflow: "hidden",
                   }}
                 >
-                  <View style={{ backgroundColor: "#F8F8F8", padding: 14 }}>
+                  {event.image ? (
+                    <Image
+                      source={{ uri: event.image }}
+                      style={{ width: "100%", height: 160 }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View
+                      style={{
+                        width: "100%",
+                        height: 90,
+                        backgroundColor: "#111",
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text style={{ fontSize: 32 }}>🏁</Text>
+                    </View>
+                  )}
+                  <View style={{ padding: 14 }}>
                     <View
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        marginBottom: 6,
+                        marginBottom: 8,
                       }}
                     >
                       <View
                         style={{
-                          width: 42,
-                          height: 42,
-                          borderRadius: 10,
-                          backgroundColor: "#222",
-                          justifyContent: "center",
-                          alignItems: "center",
-                          marginRight: 12,
+                          backgroundColor: "#F0F4FF",
+                          borderRadius: 8,
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                          marginRight: 8,
                         }}
                       >
-                        <Text style={{ fontSize: 20 }}>🎉</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
                         <Text
                           style={{
+                            fontSize: 11,
+                            color: "#3A5FCD",
                             fontWeight: "700",
-                            fontSize: 15,
-                            color: "#111",
                           }}
                         >
-                          {event.name}
-                        </Text>
-                        <Text style={{ color: "#888", fontSize: 12 }}>
-                          by @{event.users?.username}
+                          EVENT
                         </Text>
                       </View>
-                    </View>
-                    {event.date && (
-                      <Text style={{ color: "#555", fontSize: 13 }}>
-                        📅{" "}
-                        {new Date(event.date).toLocaleDateString("en-US", {
-                          weekday: "short",
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                        })}
+                      <Text style={{ color: "#888", fontSize: 12 }}>
+                        by @{event.users?.username}
                       </Text>
+                    </View>
+                    <Text
+                      style={{
+                        fontWeight: "800",
+                        fontSize: 16,
+                        color: "#111",
+                        marginBottom: 6,
+                      }}
+                    >
+                      {event.name}
+                    </Text>
+                    {event.date && (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginBottom: 3,
+                        }}
+                      >
+                        <Text style={{ color: "#555", fontSize: 13 }}>
+                          📅{" "}
+                          {new Date(event.date).toLocaleDateString("en-US", {
+                            weekday: "short",
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </Text>
+                      </View>
                     )}
                     {event.location && (
                       <Text
-                        style={{ color: "#555", fontSize: 13, marginTop: 4 }}
+                        style={{ color: "#555", fontSize: 13, marginBottom: 3 }}
                       >
                         📍 {event.location}
                       </Text>
                     )}
                     {event.description && (
                       <Text
-                        style={{ color: "#666", fontSize: 13, marginTop: 8 }}
+                        style={{
+                          color: "#666",
+                          fontSize: 13,
+                          marginTop: 6,
+                          lineHeight: 19,
+                        }}
+                        numberOfLines={2}
                       >
                         {event.description}
                       </Text>
@@ -483,10 +568,23 @@ export const SearchMainScreen = ({
                     {event.created_by === currentUser?.id && (
                       <TouchableOpacity
                         onPress={() => handleDeleteEvent(event.id)}
-                        style={{ marginTop: 8 }}
+                        style={{
+                          marginTop: 10,
+                          alignSelf: "flex-start",
+                          backgroundColor: "#FFF0F0",
+                          borderRadius: 8,
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                        }}
                       >
-                        <Text style={{ color: "#D32F2F", fontSize: 13 }}>
-                          🚪 Leave Event
+                        <Text
+                          style={{
+                            color: "#D32F2F",
+                            fontSize: 13,
+                            fontWeight: "600",
+                          }}
+                        >
+                          Delete Event
                         </Text>
                       </TouchableOpacity>
                     )}

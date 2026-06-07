@@ -134,7 +134,10 @@ export const CreatePostScreen = ({
           >
             Caption
           </Text>
-          <TouchableOpacity style={styles.boostPostBtn}>
+          <TouchableOpacity
+            style={styles.boostPostBtn}
+            onPress={() => Alert.alert("This is a paid feature!")}
+          >
             <Flame size={18} color="#E91E63" fill="#E91E63" />
             <Text style={styles.boostPostText}>Boost Post</Text>
           </TouchableOpacity>
@@ -203,9 +206,13 @@ export const CreateEventScreen = ({
   boostEvent,
   setBoostEvent,
   handleCreateEvent,
+  eventImage,
+  pickEventImage,
 }: Partial<MiscProps> & {
   setScreen: (s: string) => void;
   handleCreateEvent?: (data: any) => void;
+  eventImage?: string | null;
+  pickEventImage?: () => void;
 }) => {
   const [eventName, setEventName] = React.useState("");
   const [description, setDescription] = React.useState("");
@@ -279,6 +286,7 @@ export const CreateEventScreen = ({
               eventType,
               categories,
               eventUrl,
+              image: eventImage,
             });
           }}
         >
@@ -293,11 +301,51 @@ export const CreateEventScreen = ({
         contentContainerStyle={{ padding: 20, paddingBottom: 50 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.coverPhotoPlaceholder}>
-          <ImageIcon size={40} color="#999" />
-        </View>
-        <TouchableOpacity>
-          <Text style={styles.addPictureText}>Add Picture</Text>
+        <TouchableOpacity onPress={pickEventImage} activeOpacity={0.85}>
+          {eventImage ? (
+            <Image
+              source={{ uri: eventImage }}
+              style={{
+                width: "100%",
+                height: 190,
+                borderRadius: 16,
+                marginBottom: 6,
+              }}
+              resizeMode="cover"
+            />
+          ) : (
+            <View
+              style={{
+                width: "100%",
+                height: 190,
+                borderRadius: 16,
+                backgroundColor: "#F0F0F0",
+                justifyContent: "center",
+                alignItems: "center",
+                marginBottom: 6,
+                borderWidth: 1.5,
+                borderColor: "#DDD",
+                borderStyle: "dashed",
+              }}
+            >
+              <Camera size={36} color="#AAA" />
+              <Text style={{ color: "#AAA", marginTop: 8, fontSize: 13 }}>
+                Tap to add event cover photo
+              </Text>
+            </View>
+          )}
+          {eventImage && (
+            <Text
+              style={{
+                textAlign: "center",
+                color: "#2196F3",
+                fontSize: 13,
+                marginBottom: 8,
+              }}
+            >
+              Tap to change photo
+            </Text>
+          )}
         </TouchableOpacity>
 
         <Text style={[styles.formLabel, { marginTop: 25 }]}>Event Name</Text>
@@ -456,7 +504,8 @@ export const CreateEventScreen = ({
           <View style={{ flex: 1, paddingRight: 10 }}>
             <Text style={styles.boostEventTitle}>Boost Event</Text>
             <Text style={styles.boostEventSub}>
-              Boosting your event will increase its visibility
+              Boosting your event will increase its visibility, this feature is
+              paid!
             </Text>
           </View>
           <Switch

@@ -1,7 +1,19 @@
 import { supabase } from "@/backend/lib/supabase";
 import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, Dimensions } from "react-native";
+import {
+  Alert,
+  Dimensions,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 // Impor komponen UI dari folder frontend terpisah
 import {
@@ -27,6 +39,7 @@ import {
 import {
   AddModificationScreen,
   CreateVehicleScreen,
+  EditVehicleScreen,
   ProfileScreen,
   VehicleDetailScreen,
   VehiclesListScreen,
@@ -239,6 +252,14 @@ export default function App() {
   const [savedPosts, setSavedPosts] = useState<Record<string, boolean>>({});
   const [activeSlides, setActiveSlides] = useState<Record<string, number>>({});
   const [showGroupMenu, setShowGroupMenu] = useState(false);
+  const [commentSheetPostId, setCommentSheetPostId] = useState<string | null>(
+    null,
+  );
+  const [comments, setComments] = useState<any[]>([]);
+  const [commentText, setCommentText] = useState("");
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>(
+    {},
+  );
 
   // Pembuatan Group Baru
   const [isPrivate, setIsPrivate] = useState(false);
@@ -304,7 +325,7 @@ export default function App() {
       }
     };
 
-    checkInitialSession();
+    setTimeout(() => checkInitialSession(), 500);
 
     // 2. Set up a listener to catch the session as soon as local storage restores it
     const {
@@ -646,6 +667,25 @@ export default function App() {
     }
   };
 
+  const [eventImage, setEventImage] = useState<string | null>(null);
+
+  const pickEventImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Denied", "Camera roll permission is required.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: "images",
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.length > 0) {
+      setEventImage(result.assets[0].uri);
+    }
+  };
+
   const pickPostImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
@@ -691,7 +731,10 @@ export default function App() {
       .select("*")
       .eq("user_id", currentUser.id)
       .order("created_at", { ascending: false });
-    if (!error) setUserPosts(data || []);
+    if (!error) {
+      setUserPosts(data || []);
+      fetchCommentCounts((data || []).map((p: any) => p.id));
+    }
   };
 
   const fetchAllPosts = async () => {
@@ -699,7 +742,10 @@ export default function App() {
       .from("posts")
       .select("*, users(username, first_name, last_name, profile_image)")
       .order("created_at", { ascending: false });
-    if (!error) setAllPosts(data || []);
+    if (!error) {
+      setAllPosts(data || []);
+      fetchCommentCounts((data || []).map((p: any) => p.id));
+    }
   };
 
   const fetchAllEvents = async () => {
@@ -783,9 +829,11 @@ export default function App() {
         description: eventData.description,
         location: eventData.location,
         date: eventData.startDate,
+        image: eventData.image,
       });
       if (error) throw error;
       Alert.alert("✅ Event Created!", "Your event has been published.");
+      setEventImage(null);
       setScreen("home");
     } catch (e: any) {
       Alert.alert("❌ Error", e.message);
@@ -835,7 +883,14 @@ export default function App() {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
-          await supabase.from("events").delete().eq("id", eventId);
+          const { error } = await supabase
+            .from("events")
+            .delete()
+            .eq("id", eventId);
+          if (error) {
+            Alert.alert("❌ Error", error.message);
+            return;
+          }
           setAllEvents((prev) => prev.filter((e) => e.id !== eventId));
           Alert.alert("✅ Event deleted");
         },
@@ -927,22 +982,94 @@ export default function App() {
   };
 
   // AKSI MODIFIKASI KENDARAAN (Tambahkan Modifikasi)
-  const handleSaveModification = (modData: {
+  const fetchModifications = async (vehicleId: string) => {
+    const { data, error } = await supabase
+      .from("vehicle_modifications")
+      .select("*")
+      .eq("vehicle_id", vehicleId)
+      .order("created_at", { ascending: true });
+    if (!error) setModifications(data || []);
+  };
+
+  const handleSaveModification = async (modData: {
     name: string;
     description: string;
     link: string;
     classification: string;
   }) => {
-    const newMod = {
-      id: Date.now(),
-      name: modData.name,
-      description: modData.description,
-      link: modData.link,
-      classification: modData.classification,
-    };
-    setModifications((prev) => [...prev, newMod]);
-    setScreen("vehicleDetail");
+    if (!selectedVehicle?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from("vehicle_modifications")
+        .insert({
+          vehicle_id: selectedVehicle.id,
+          name: modData.name,
+          description: modData.description,
+          link: modData.link,
+          classification: modData.classification,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      setModifications((prev) => [...prev, data]);
+      setScreen("vehicleDetail");
+    } catch (e: any) {
+      Alert.alert("❌ Error", e.message);
+    }
   };
+
+  const handleDeleteModification = async (modId: string) => {
+    Alert.alert("Delete Modification?", "This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          const { error } = await supabase
+            .from("vehicle_modifications")
+            .delete()
+            .eq("id", modId);
+          if (error) {
+            Alert.alert("❌ Error", error.message);
+            return;
+          }
+          setModifications((prev) => prev.filter((m) => m.id !== modId));
+        },
+      },
+    ]);
+  };
+
+  const handleUpdateVehicle = async (vehicleData: any) => {
+    if (!selectedVehicle?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from("vehicles")
+        .update({
+          name: vehicleData.name,
+          model: vehicleData.model,
+          trim: vehicleData.trim,
+          color: vehicleData.color,
+          description: vehicleData.description,
+          image: vehicleData.image,
+        })
+        .eq("id", selectedVehicle.id)
+        .select()
+        .single();
+      if (error) throw error;
+      setVehicles((prev) => prev.map((v) => (v.id === data.id ? data : v)));
+      setSelectedVehicle(data);
+      Alert.alert("✅ Vehicle updated!");
+      setScreen("vehicleDetail");
+    } catch (e: any) {
+      Alert.alert("❌ Error", e.message);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedVehicle?.id && screen === "vehicleDetail") {
+      fetchModifications(selectedVehicle.id);
+    }
+  }, [selectedVehicle, screen]);
 
   // Center peta ke lokasi GPS pengguna
   const goToMyLocation = () => {
@@ -957,6 +1084,90 @@ export default function App() {
     setLikedPosts((prev) => ({ ...prev, [postId]: !prev[postId] }));
   const toggleSave = (postId: any) =>
     setSavedPosts((prev) => ({ ...prev, [postId]: !prev[postId] }));
+
+  const openComments = async (postId: string) => {
+    setCommentSheetPostId(postId);
+    const { data, error } = await supabase
+      .from("post_comments")
+      .select("*, users(username, profile_image)")
+      .eq("post_id", postId)
+      .order("created_at", { ascending: true });
+    if (!error) setComments(data || []);
+  };
+
+  const closeComments = () => {
+    setCommentSheetPostId(null);
+    setComments([]);
+    setCommentText("");
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    Alert.alert("Delete Comment?", "This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          const { error } = await supabase
+            .from("post_comments")
+            .delete()
+            .eq("id", commentId);
+          if (error) {
+            Alert.alert("❌ Error", error.message);
+            return;
+          }
+          setComments((prev) => prev.filter((c) => c.id !== commentId));
+          if (commentSheetPostId) {
+            setCommentCounts((prev) => ({
+              ...prev,
+              [commentSheetPostId]: Math.max(
+                (prev[commentSheetPostId] || 1) - 1,
+                0,
+              ),
+            }));
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleAddComment = async () => {
+    if (!commentText.trim() || !commentSheetPostId) return;
+    try {
+      const { data, error } = await supabase
+        .from("post_comments")
+        .insert({
+          post_id: commentSheetPostId,
+          user_id: currentUser.id,
+          content: commentText.trim(),
+        })
+        .select("*, users(username, profile_image)")
+        .single();
+      if (error) throw error;
+      setComments((prev) => [...prev, data]);
+      setCommentCounts((prev) => ({
+        ...prev,
+        [commentSheetPostId]: (prev[commentSheetPostId] || 0) + 1,
+      }));
+      setCommentText("");
+    } catch (e: any) {
+      Alert.alert("❌ Error", e.message);
+    }
+  };
+
+  const fetchCommentCounts = async (postIds: string[]) => {
+    if (!postIds.length) return;
+    const { data, error } = await supabase
+      .from("post_comments")
+      .select("post_id")
+      .in("post_id", postIds);
+    if (error) return;
+    const counts: Record<string, number> = {};
+    data.forEach((row: any) => {
+      counts[row.post_id] = (counts[row.post_id] || 0) + 1;
+    });
+    setCommentCounts((prev) => ({ ...prev, ...counts }));
+  };
   const handleScrollImage = (event: any, postId: any) => {
     const slideIndex = Math.round(event.nativeEvent.contentOffset.x / width);
     setActiveSlides((prev) => ({ ...prev, [postId]: slideIndex }));
@@ -975,6 +1186,162 @@ export default function App() {
   };
 
   // --- ROUTING DAN RENDER SCREEN ---
+
+  const commentSheetModal = (
+    <Modal
+      visible={!!commentSheetPostId}
+      transparent
+      animationType="slide"
+      onRequestClose={closeComments}
+    >
+      <TouchableOpacity
+        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
+        activeOpacity={1}
+        onPress={closeComments}
+      />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{
+          backgroundColor: "#FFF",
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          maxHeight: "70%",
+        }}
+      >
+        <View
+          style={{
+            width: 40,
+            height: 4,
+            backgroundColor: "#DDD",
+            borderRadius: 2,
+            alignSelf: "center",
+            marginTop: 12,
+            marginBottom: 8,
+          }}
+        />
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "700",
+            textAlign: "center",
+            marginBottom: 12,
+          }}
+        >
+          Comments
+        </Text>
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {comments.length === 0 ? (
+            <Text
+              style={{
+                color: "#999",
+                textAlign: "center",
+                marginTop: 20,
+                marginBottom: 20,
+              }}
+            >
+              No comments yet. Be the first!
+            </Text>
+          ) : (
+            comments.map((c: any) => (
+              <View
+                key={c.id}
+                style={{
+                  flexDirection: "row",
+                  marginBottom: 14,
+                  alignItems: "flex-start",
+                }}
+              >
+                {c.users?.profile_image ? (
+                  <Image
+                    source={{ uri: c.users.profile_image }}
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 17,
+                      marginRight: 10,
+                    }}
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 17,
+                      backgroundColor: "#EEE",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      marginRight: 10,
+                    }}
+                  >
+                    <Text style={{ fontSize: 14 }}>👤</Text>
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontWeight: "700", fontSize: 13 }}>
+                    @{c.users?.username}
+                  </Text>
+                  <Text style={{ fontSize: 14, color: "#222", marginTop: 2 }}>
+                    {c.content}
+                  </Text>
+                </View>
+                {c.user_id === currentUser?.id && (
+                  <TouchableOpacity
+                    onPress={() => handleDeleteComment(c.id)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={{ paddingLeft: 8, paddingTop: 2 }}
+                  >
+                    <Text style={{ color: "#D32F2F", fontSize: 12 }}>
+                      Delete
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))
+          )}
+        </ScrollView>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            padding: 12,
+            borderTopWidth: 1,
+            borderTopColor: "#EEE",
+          }}
+        >
+          <TextInput
+            style={{
+              flex: 1,
+              backgroundColor: "#F5F5F5",
+              borderRadius: 20,
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              fontSize: 14,
+              marginRight: 10,
+            }}
+            placeholder="Add a comment..."
+            placeholderTextColor="#999"
+            value={commentText}
+            onChangeText={setCommentText}
+            multiline
+          />
+          <TouchableOpacity
+            onPress={handleAddComment}
+            style={{
+              backgroundColor: "#000",
+              borderRadius: 20,
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+            }}
+          >
+            <Text style={{ color: "#FFF", fontWeight: "700" }}>Post</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
 
   if (
     !currentUser &&
@@ -999,107 +1366,6 @@ export default function App() {
         setLoginForm={setLoginForm}
         handleLogin={handleLogin}
         setScreen={setScreen}
-      />
-    );
-  }
-
-  if (screen === "login") {
-    return (
-      <LoginScreen
-        loginForm={loginForm}
-        setLoginForm={setLoginForm}
-        handleLogin={handleLogin}
-        setScreen={setScreen}
-      />
-    );
-  }
-  if (screen === "signup") {
-    return (
-      <SignUpScreen
-        signupForm={signupForm}
-        setSignupForm={setSignupForm}
-        handleSignup={handleSignup}
-        setScreen={setScreen}
-      />
-    );
-  }
-  if (screen === "addPost") {
-    return <AddPostScreen setScreen={setScreen} currentUser={currentUser} />;
-  }
-  if (screen === "searchMain") {
-    return (
-      <SearchMainScreen
-        setScreen={setScreen}
-        currentUser={currentUser}
-        myGroups={myGroups}
-        allPosts={allPosts}
-        allEvents={allEvents}
-        handleDeletePost={handleDeletePost}
-        handleDeleteEvent={handleDeleteEvent}
-        likedPosts={likedPosts}
-        savedPosts={savedPosts}
-        toggleLike={toggleLike}
-        toggleSave={toggleSave}
-      />
-    );
-  }
-  if (screen === "inbox") {
-    return <InboxScreen setScreen={setScreen} />;
-  }
-  if (screen === "notifications") {
-    return <NotificationScreen setScreen={setScreen} />;
-  }
-  if (screen === "profile") {
-    return (
-      <ProfileScreen
-        setScreen={setScreen}
-        currentUser={currentUser}
-        handleLogout={handleLogout}
-        setVehicleBackScreen={setVehicleBackScreen}
-        handleUpdateProfile={handleUpdateProfile}
-        userPosts={userPosts}
-        pickProfilePhoto={pickProfilePhoto}
-        pickCoverPhoto={pickCoverPhoto}
-        handleDeletePost={handleDeletePost}
-        setSelectedVehicle={setSelectedVehicle}
-        vehicles={vehicles}
-        likedPosts={likedPosts}
-        savedPosts={savedPosts}
-        toggleLike={toggleLike}
-        toggleSave={toggleSave}
-      />
-    );
-  }
-  if (screen === "groups") {
-    return (
-      <GroupsScreen
-        setScreen={setScreen}
-        currentUser={currentUser}
-        myGroups={myGroups}
-        setSelectedGroup={setSelectedGroup}
-        loadingGroups={loadingGroups}
-      />
-    );
-  }
-  if (screen === "groupFeed") {
-    return (
-      <GroupFeedScreen
-        setScreen={setScreen}
-        selectedGroup={selectedGroup}
-        showGroupMenu={showGroupMenu}
-        setShowGroupMenu={setShowGroupMenu}
-        likedPosts={likedPosts}
-        savedPosts={savedPosts}
-        activeSlides={activeSlides}
-        toggleLike={toggleLike}
-        toggleSave={toggleSave}
-        handleScrollImage={handleScrollImage}
-        width={width}
-        fetchGroupMembers={fetchGroupMembers}
-        fetchMemberVehicles={fetchMemberVehicles}
-        fetchGroupPosts={fetchGroupPosts}
-        handleLeaveGroup={handleLeaveGroup}
-        currentUser={currentUser}
       />
     );
   }
@@ -1162,6 +1428,8 @@ export default function App() {
         boostEvent={boostEvent}
         setBoostEvent={setBoostEvent}
         handleCreateEvent={handleCreateEvent}
+        eventImage={eventImage}
+        pickEventImage={pickEventImage}
       />
     );
   }
@@ -1177,6 +1445,7 @@ export default function App() {
         setShowVehicleMenu={setShowVehicleMenu}
         selectedVehicle={selectedVehicle}
         handleDeleteVehicle={handleDeleteVehicle}
+        handleDeleteModification={handleDeleteModification}
       />
     );
   }
@@ -1201,13 +1470,130 @@ export default function App() {
       />
     );
   }
+  if (screen === "editVehicle") {
+    return (
+      <EditVehicleScreen
+        setScreen={setScreen}
+        selectedVehicle={selectedVehicle}
+        handleUpdateVehicle={handleUpdateVehicle}
+      />
+    );
+  }
 
-  return (
+  const wrapWithModal = (screen: React.ReactNode) => (
+    <>
+      {commentSheetModal}
+      {screen}
+    </>
+  );
+
+  if (screen === "login")
+    return wrapWithModal(
+      <LoginScreen
+        loginForm={loginForm}
+        setLoginForm={setLoginForm}
+        handleLogin={handleLogin}
+        setScreen={setScreen}
+      />,
+    );
+  if (screen === "signup")
+    return wrapWithModal(
+      <SignUpScreen
+        signupForm={signupForm}
+        setSignupForm={setSignupForm}
+        handleSignup={handleSignup}
+        setScreen={setScreen}
+      />,
+    );
+  if (screen === "addPost")
+    return wrapWithModal(
+      <AddPostScreen setScreen={setScreen} currentUser={currentUser} />,
+    );
+  if (screen === "searchMain")
+    return wrapWithModal(
+      <SearchMainScreen
+        setScreen={setScreen}
+        currentUser={currentUser}
+        myGroups={myGroups}
+        allPosts={allPosts}
+        allEvents={allEvents}
+        handleDeletePost={handleDeletePost}
+        handleDeleteEvent={handleDeleteEvent}
+        likedPosts={likedPosts}
+        savedPosts={savedPosts}
+        toggleLike={toggleLike}
+        toggleSave={toggleSave}
+        commentCounts={commentCounts}
+        openComments={openComments}
+      />,
+    );
+  if (screen === "inbox")
+    return wrapWithModal(<InboxScreen setScreen={setScreen} />);
+  if (screen === "notifications")
+    return wrapWithModal(<NotificationScreen setScreen={setScreen} />);
+  if (screen === "profile")
+    return wrapWithModal(
+      <ProfileScreen
+        setScreen={setScreen}
+        currentUser={currentUser}
+        handleLogout={handleLogout}
+        setVehicleBackScreen={setVehicleBackScreen}
+        handleUpdateProfile={handleUpdateProfile}
+        userPosts={userPosts}
+        pickProfilePhoto={pickProfilePhoto}
+        pickCoverPhoto={pickCoverPhoto}
+        handleDeletePost={handleDeletePost}
+        setSelectedVehicle={setSelectedVehicle}
+        vehicles={vehicles}
+        likedPosts={likedPosts}
+        savedPosts={savedPosts}
+        toggleLike={toggleLike}
+        toggleSave={toggleSave}
+        commentCounts={commentCounts}
+        openComments={openComments}
+      />,
+    );
+  if (screen === "groups")
+    return wrapWithModal(
+      <GroupsScreen
+        setScreen={setScreen}
+        currentUser={currentUser}
+        myGroups={myGroups}
+        setSelectedGroup={setSelectedGroup}
+        loadingGroups={loadingGroups}
+      />,
+    );
+  if (screen === "groupFeed")
+    return wrapWithModal(
+      <GroupFeedScreen
+        setScreen={setScreen}
+        selectedGroup={selectedGroup}
+        showGroupMenu={showGroupMenu}
+        setShowGroupMenu={setShowGroupMenu}
+        likedPosts={likedPosts}
+        savedPosts={savedPosts}
+        activeSlides={activeSlides}
+        toggleLike={toggleLike}
+        toggleSave={toggleSave}
+        handleScrollImage={handleScrollImage}
+        width={width}
+        fetchGroupMembers={fetchGroupMembers}
+        fetchMemberVehicles={fetchMemberVehicles}
+        fetchGroupPosts={fetchGroupPosts}
+        handleLeaveGroup={handleLeaveGroup}
+        currentUser={currentUser}
+        commentCounts={commentCounts}
+        openComments={openComments}
+        fetchCommentCounts={fetchCommentCounts}
+      />,
+    );
+
+  return wrapWithModal(
     <HomeScreen
       mapRef={mapRef}
       setScreen={setScreen}
       goToMyLocation={goToMyLocation}
       currentUser={currentUser}
-    />
+    />,
   );
 }

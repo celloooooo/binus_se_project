@@ -44,6 +44,12 @@ export const GroupsScreen = ({
   setSelectedGroup,
   loadingGroups = false,
 }: GroupsScreenProps) => {
+  const [searchQuery, setSearchQuery] = React.useState("");
+
+  const filteredGroups = myGroups.filter((g: any) =>
+    g.name?.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
   return (
     <View style={styles.whiteContainer}>
       <View style={styles.topPageHeader}>
@@ -58,6 +64,8 @@ export const GroupsScreen = ({
           placeholder="Search My Groups"
           style={styles.searchField}
           placeholderTextColor="#999"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
         />
       </View>
       <ScrollView
@@ -76,12 +84,17 @@ export const GroupsScreen = ({
               Join groups to connect with other car enthusiasts{"\n"}near you or
               worldwide!
             </Text>
-            {/* <TouchableOpacity style={styles.joinGroupsBtn}>
-              <Text style={styles.joinGroupsBtnText}>Find Groups</Text>
-            </TouchableOpacity> */}
+          </View>
+        ) : filteredGroups.length === 0 ? (
+          <View style={styles.emptyGroupsContainer}>
+            <Users2 size={70} color="#999" strokeWidth={1.5} />
+            <Text style={styles.emptyGroupsTitle}>No Results</Text>
+            <Text style={styles.emptyGroupsText}>
+              No groups match "{searchQuery}"
+            </Text>
           </View>
         ) : (
-          myGroups.map((group: any, index: number) => (
+          filteredGroups.map((group: any, index: number) => (
             <TouchableOpacity
               key={group.id || index}
               style={styles.groupCard}
@@ -155,6 +168,9 @@ interface GroupFeedScreenProps {
   fetchGroupPosts: (groupId: string) => Promise<any[]>;
   handleLeaveGroup: (groupId: string) => void;
   currentUser: any;
+  commentCounts: Record<string, number>;
+  openComments: (postId: string) => void;
+  fetchCommentCounts: (postIds: string[]) => void;
 }
 
 export const GroupFeedScreen = ({
@@ -174,6 +190,9 @@ export const GroupFeedScreen = ({
   fetchGroupPosts,
   handleLeaveGroup,
   currentUser,
+  commentCounts,
+  openComments,
+  fetchCommentCounts,
 }: GroupFeedScreenProps) => {
   if (!selectedGroup) return null;
 
@@ -186,7 +205,10 @@ export const GroupFeedScreen = ({
     if (selectedGroup?.id) {
       fetchGroupMembers(selectedGroup.id).then(setMembers);
       fetchMemberVehicles(selectedGroup.id).then(setGarageVehicles);
-      fetchGroupPosts(selectedGroup.id).then(setGroupPosts);
+      fetchGroupPosts(selectedGroup.id).then((posts) => {
+        setGroupPosts(posts);
+        fetchCommentCounts(posts.map((p: any) => p.id));
+      });
     }
   }, [selectedGroup]);
 
@@ -515,13 +537,18 @@ export const GroupFeedScreen = ({
                       />
                     </TouchableOpacity>
                     <Text style={styles.actionText}>{currentLikes}</Text>
-                    <TouchableOpacity style={styles.actionIcon}>
-                      <MessageCircle size={26} color="black" />
-                    </TouchableOpacity>
-                    <Text style={styles.actionText}>{post.comments || 0}</Text>
                     <TouchableOpacity
                       style={styles.actionIcon}
-                      onPress={() => setShowGroupMenu(true)}
+                      onPress={() => openComments(post.id)}
+                    >
+                      <MessageCircle size={26} color="black" />
+                    </TouchableOpacity>
+                    <Text style={styles.actionText}>
+                      {commentCounts[post.id] || 0}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.actionIcon}
+                      onPress={() => Alert.alert("Post link copied!")}
                     >
                       <Send size={26} color="black" />
                     </TouchableOpacity>
