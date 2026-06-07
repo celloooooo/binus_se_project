@@ -1,12 +1,12 @@
-import React from 'react';
+import React from "react";
 import {
-  View,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView
-} from 'react-native';
-import { styles } from './styles';
+  View,
+} from "react-native";
+import { styles } from "./styles";
 
 interface LoginScreenProps {
   loginForm: any;
@@ -19,36 +19,37 @@ export const LoginScreen = ({
   loginForm,
   setLoginForm,
   handleLogin,
-  setScreen
+  setScreen,
 }: LoginScreenProps) => (
   <View style={styles.authContainer}>
     <Text style={styles.authLogo}>DriveTribe</Text>
-    <TextInput 
-      placeholder="Username" 
-      style={styles.authInput} 
-      placeholderTextColor="#999" 
-      value={loginForm.username} 
-      onChangeText={text => setLoginForm({ ...loginForm, username: text })} 
+    <Text style={styles.authSubtext}>Where drivers connect.</Text>
+    <TextInput
+      placeholder="Username"
+      style={styles.authInput}
+      placeholderTextColor="#999"
+      value={loginForm.username}
+      onChangeText={(text) => setLoginForm({ ...loginForm, username: text })}
       autoCapitalize="none"
     />
-    <TextInput 
-      placeholder="Password" 
-      style={styles.authInput} 
-      secureTextEntry 
-      placeholderTextColor="#999" 
-      value={loginForm.password} 
-      onChangeText={text => setLoginForm({ ...loginForm, password: text })} 
+    <TextInput
+      placeholder="Password"
+      style={styles.authInput}
+      secureTextEntry
+      placeholderTextColor="#999"
+      value={loginForm.password}
+      onChangeText={(text) => setLoginForm({ ...loginForm, password: text })}
       autoCapitalize="none"
     />
     <TouchableOpacity style={styles.authPrimaryBtn} onPress={handleLogin}>
       <Text style={styles.authBtnText}>Sign in</Text>
     </TouchableOpacity>
-    <TouchableOpacity>
+    <TouchableOpacity onPress={() => alert("Reset link sent to your email!")}>
       <Text style={styles.authLinkSmall}>Forgot Password?</Text>
     </TouchableOpacity>
     <View style={styles.authFooter}>
       <Text style={styles.authFooterText}>Don't have an account?</Text>
-      <TouchableOpacity onPress={() => setScreen('signup')}>
+      <TouchableOpacity onPress={() => setScreen("signup")}>
         <Text style={styles.authLinkBlue}> Sign up</Text>
       </TouchableOpacity>
     </View>
@@ -66,59 +67,68 @@ export const SignUpScreen = ({
   signupForm,
   setSignupForm,
   handleSignup,
-  setScreen
+  setScreen,
 }: SignUpScreenProps) => (
   <ScrollView contentContainerStyle={styles.authContainer}>
     <Text style={styles.authLogo}>DriveTribe</Text>
     <View style={styles.authRow}>
-      <TextInput 
-        placeholder="First Name" 
-        style={[styles.authInput, { flex: 1, marginRight: 10 }]} 
-        value={signupForm.firstName} 
-        onChangeText={text => setSignupForm({ ...signupForm, firstName: text })} 
+      <TextInput
+        placeholder="First Name"
+        style={[styles.authInput, { flex: 1, marginRight: 10 }]}
+        value={signupForm.firstName}
+        onChangeText={(text) =>
+          setSignupForm({ ...signupForm, firstName: text })
+        }
       />
-      <TextInput 
-        placeholder="Last Name" 
-        style={[styles.authInput, { flex: 1 }]} 
-        value={signupForm.lastName} 
-        onChangeText={text => setSignupForm({ ...signupForm, lastName: text })} 
+      <TextInput
+        placeholder="Last Name"
+        style={[styles.authInput, { flex: 1 }]}
+        value={signupForm.lastName}
+        onChangeText={(text) =>
+          setSignupForm({ ...signupForm, lastName: text })
+        }
       />
     </View>
-    <TextInput 
-      placeholder="Username" 
-      style={styles.authInput} 
-      value={signupForm.username} 
-      onChangeText={text => setSignupForm({ ...signupForm, username: text })} 
+    <TextInput
+      placeholder="Username"
+      style={styles.authInput}
+      value={signupForm.username}
+      onChangeText={(text) => setSignupForm({ ...signupForm, username: text })}
       autoCapitalize="none"
     />
-    <TextInput 
-      placeholder="Email" 
-      style={styles.authInput} 
-      value={signupForm.email} 
-      onChangeText={text => setSignupForm({ ...signupForm, email: text })} 
-      keyboardType="email-address" 
+    <TextInput
+      placeholder="Email"
+      style={styles.authInput}
+      value={signupForm.email}
+      onChangeText={(text) => setSignupForm({ ...signupForm, email: text })}
+      keyboardType="email-address"
       autoCapitalize="none"
     />
-    <TextInput 
-      placeholder="Password" 
-      style={styles.authInput} 
-      secureTextEntry 
-      value={signupForm.password} 
-      onChangeText={text => setSignupForm({ ...signupForm, password: text })} 
+    <TextInput
+      placeholder="Password"
+      style={styles.authInput}
+      secureTextEntry
+      value={signupForm.password}
+      onChangeText={(text) => setSignupForm({ ...signupForm, password: text })}
       autoCapitalize="none"
     />
-    <TextInput 
-      placeholder="Confirm Password" 
-      style={styles.authInput} 
-      secureTextEntry 
-      value={signupForm.confirmPassword} 
-      onChangeText={text => setSignupForm({ ...signupForm, confirmPassword: text })} 
+    <TextInput
+      placeholder="Confirm Password"
+      style={styles.authInput}
+      secureTextEntry
+      value={signupForm.confirmPassword}
+      onChangeText={(text) =>
+        setSignupForm({ ...signupForm, confirmPassword: text })
+      }
       autoCapitalize="none"
     />
     <TouchableOpacity style={styles.authPrimaryBtn} onPress={handleSignup}>
       <Text style={styles.authBtnText}>Sign Up</Text>
     </TouchableOpacity>
-    <TouchableOpacity style={styles.authSecondaryBtn} onPress={() => setScreen('login')}>
+    <TouchableOpacity
+      style={styles.authSecondaryBtn}
+      onPress={() => setScreen("login")}
+    >
       <Text style={styles.authSecondaryText}>← Back to Login</Text>
     </TouchableOpacity>
   </ScrollView>

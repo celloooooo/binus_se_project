@@ -309,39 +309,26 @@ export default function App() {
   };
 
   // Restore session on mount
-  //  FIXED INITIALIZATION HOOK
   useEffect(() => {
-    // 1. Check for an immediate session if it's already cached and ready
-    const checkInitialSession = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (session?.user) {
-          await fetchAndNormalizeProfile(session.user.id);
-        }
-      } catch (err) {
-        console.error("Error getting initial session:", err);
-      }
-    };
-
-    setTimeout(() => checkInitialSession(), 500);
-
-    // 2. Set up a listener to catch the session as soon as local storage restores it
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth State Changed Event:", event);
 
-      if (session?.user) {
-        await fetchAndNormalizeProfile(session.user.id);
+      if (
+        event === "INITIAL_SESSION" ||
+        event === "SIGNED_IN" ||
+        event === "TOKEN_REFRESHED"
+      ) {
+        if (session?.user) {
+          await fetchAndNormalizeProfile(session.user.id);
+        }
       } else if (event === "SIGNED_OUT") {
         setCurrentUser(null);
         setScreen("login");
       }
     });
 
-    // Clean up the listener when the component unmounts
     return () => {
       subscription.unsubscribe();
     };
@@ -354,15 +341,15 @@ export default function App() {
         .from("users")
         .select("*")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 
       if (profile) {
-        // Run your normalizer to map profile_image to profileImage cleanly
         normalizeAndSetUser(profile);
-        setScreen("home"); // Teleport directly into the app
+        setScreen("home");
       }
+      // No profile yet = new signup still in progress, do nothing
     } catch (err: any) {
       console.error("Profile sync failed on restore:", err.message);
     }
@@ -453,7 +440,7 @@ export default function App() {
         .single();
 
       if (profileError || !profile) {
-        Alert.alert("❌ Login Failed", "Username tidak ditemukan!");
+        Alert.alert("❌ Login Failed", "User not found!");
         return;
       }
 
@@ -484,11 +471,11 @@ export default function App() {
       !signupForm.password ||
       !signupForm.confirmPassword
     ) {
-      Alert.alert("❌ Error", "Semua field harus diisi!");
+      Alert.alert("❌ Error", "All fields are required!");
       return;
     }
     if (signupForm.password !== signupForm.confirmPassword) {
-      Alert.alert("❌ Error", "Password tidak cocok!");
+      Alert.alert("❌ Error", "Password doesn't match!");
       return;
     }
 
@@ -499,7 +486,7 @@ export default function App() {
       });
       if (error) throw error;
 
-      if (!data.user) throw new Error("Gagal membuat user.");
+      if (!data.user) throw new Error("Failed to create user!");
 
       const { error: profileError } = await supabase.from("users").insert({
         id: data.user.id,

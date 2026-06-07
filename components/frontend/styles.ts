@@ -16,7 +16,12 @@ export const styles = StyleSheet.create({
     fontSize: 42,
     fontWeight: "900",
     color: "black",
-    marginBottom: 60,
+    marginBottom: 5,
+  },
+  authSubtext: {
+    fontSize: 15,
+    color: "black",
+    marginBottom: 30,
   },
   authInput: {
     width: "100%",
