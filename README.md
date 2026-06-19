@@ -19,3 +19,7 @@ This is for a software engineering class project, our members:
 - Frontend layer: React native
 - Backend layer: Supabase (covers both database and authentication)
 - Development build: Expo Go (supports both iOS and Android app)
+
+# IMPORTANT ⚠
+Since we are using Supabase's free tier, our database and authentication gets inactive if there are no activities in our Supabase project for more than 7 days
+Please let us know if the authentication doesn't work, we will reactivate our Supabase project so the database and authentication works as intended for the next 7 days
